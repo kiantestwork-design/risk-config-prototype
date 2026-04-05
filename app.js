@@ -177,28 +177,28 @@ i.protocol==="http"?(0,X.jsxs)(X.Fragment,{children:[
 (0,X.jsxs)("div",{children:[
 (0,X.jsxs)("div",{className:"flex justify-between items-center mb-1",children:[
 (0,X.jsx)("label",{className:"block text-xs font-medium text-slate-500",children:"\u53c2\u6570\u6620\u5c04 (\u53c2\u6570\u540d \u2192 riskFact JsonPath)"}),
-(0,X.jsxs)("button",{type:"button",onClick:()=>{let _pm={...(i.paramMapping||{}),"":""};_uc("paramMapping",_pm)},className:"text-xs text-indigo-600 hover:text-indigo-800",children:["\u6dfb\u52a0"]})
+(0,X.jsxs)("button",{type:"button",onClick:()=>{let _pm=[...(i.paramMapping||[]),{k:"",v:""}];_uc("paramMapping",_pm)},className:"text-xs text-indigo-600 hover:text-indigo-800",children:["\u6dfb\u52a0"]})
 ]}),
-(0,X.jsx)("div",{className:"border border-slate-200 rounded overflow-hidden",children:Object.entries(i.paramMapping||{}).length===0?(0,X.jsx)("div",{className:"text-xs text-slate-400 text-center py-2",children:"\u65e0\u53c2\u6570\u6620\u5c04"}):(0,X.jsxs)("table",{className:"w-full",children:[
+(0,X.jsx)("div",{className:"border border-slate-200 rounded overflow-hidden",children:(i.paramMapping||[]).length===0?(0,X.jsx)("div",{className:"text-xs text-slate-400 text-center py-2",children:"\u65e0\u53c2\u6570\u6620\u5c04"}):(0,X.jsxs)("table",{className:"w-full",children:[
 (0,X.jsx)("thead",{children:(0,X.jsxs)("tr",{className:"bg-slate-50",children:[(0,X.jsx)("th",{className:"text-xs text-slate-400 font-normal text-left px-2 py-1",children:"\u53c2\u6570\u540d"}),(0,X.jsx)("th",{className:"text-xs text-slate-400 font-normal text-left px-2 py-1",children:"JsonPath"}),(0,X.jsx)("th",{className:"w-6"})]})}),
-(0,X.jsx)("tbody",{children:Object.entries(i.paramMapping||{}).map(([_pk,_pv],_pi)=>(0,X.jsxs)("tr",{className:"border-t border-slate-100",children:[
-(0,X.jsx)("td",{className:"px-2 py-1",children:(0,X.jsx)("input",{type:"text",className:"w-full text-xs border border-slate-200 rounded px-1 py-0.5",value:_pk,onChange:_ev=>{let _pm={};Object.entries(i.paramMapping||{}).forEach(([k,v],idx)=>{_pm[idx===_pi?_ev.target.value:k]=v});_uc("paramMapping",_pm)}})}),
-(0,X.jsx)("td",{className:"px-2 py-1",children:(0,X.jsx)("input",{type:"text",className:"w-full text-xs border border-slate-200 rounded px-1 py-0.5 font-mono",value:_pv,onChange:_ev=>{let _pm={...i.paramMapping,[_pk]:_ev.target.value};_uc("paramMapping",_pm)}})}),
-(0,X.jsx)("td",{className:"px-1",children:(0,X.jsx)("button",{type:"button",onClick:()=>{let _pm={...i.paramMapping};delete _pm[_pk];_uc("paramMapping",_pm)},className:"text-xs text-red-400 hover:text-red-600",children:"\u00d7"})})
+(0,X.jsx)("tbody",{children:(i.paramMapping||[]).map((_pr,_pi)=>(0,X.jsxs)("tr",{className:"border-t border-slate-100",children:[
+(0,X.jsx)("td",{className:"px-2 py-1",children:(0,X.jsx)("input",{type:"text",className:"w-full text-xs border border-slate-200 rounded px-1 py-0.5",value:_pr.k,onChange:_ev=>{let _pm=[...(i.paramMapping||[])];_pm[_pi]={..._pm[_pi],k:_ev.target.value};_uc("paramMapping",_pm)}})}),
+(0,X.jsx)("td",{className:"px-2 py-1",children:(0,X.jsx)("input",{type:"text",className:"w-full text-xs border border-slate-200 rounded px-1 py-0.5 font-mono",value:_pr.v,onChange:_ev=>{let _pm=[...(i.paramMapping||[])];_pm[_pi]={..._pm[_pi],v:_ev.target.value};_uc("paramMapping",_pm)}})}),
+(0,X.jsx)("td",{className:"px-1",children:(0,X.jsx)("button",{type:"button",onClick:()=>{let _pm=(i.paramMapping||[]).filter((_,_i2)=>_i2!==_pi);_uc("paramMapping",_pm)},className:"text-xs text-red-400 hover:text-red-600",children:"\u00d7"})})
 ]},_pi))})
 ]})})
 ]}),
 (0,X.jsxs)("div",{children:[
 (0,X.jsxs)("div",{className:"flex justify-between items-center mb-1",children:[
 (0,X.jsx)("label",{className:"block text-xs font-medium text-slate-500",children:"\u5e38\u91cf\u53c2\u6570"}),
-(0,X.jsxs)("button",{type:"button",onClick:()=>{let _ct={...(i.constants||{}),"":""};_uc("constants",_ct)},className:"text-xs text-indigo-600 hover:text-indigo-800",children:["\u6dfb\u52a0"]})
+(0,X.jsxs)("button",{type:"button",onClick:()=>{let _ct=[...(i.constants||[]),{k:"",v:""}];_uc("constants",_ct)},className:"text-xs text-indigo-600 hover:text-indigo-800",children:["\u6dfb\u52a0"]})
 ]}),
-(0,X.jsx)("div",{className:"border border-slate-200 rounded overflow-hidden",children:Object.entries(i.constants||{}).length===0?(0,X.jsx)("div",{className:"text-xs text-slate-400 text-center py-2",children:"\u65e0\u5e38\u91cf\u53c2\u6570"}):(0,X.jsxs)("table",{className:"w-full",children:[
+(0,X.jsx)("div",{className:"border border-slate-200 rounded overflow-hidden",children:(i.constants||[]).length===0?(0,X.jsx)("div",{className:"text-xs text-slate-400 text-center py-2",children:"\u65e0\u5e38\u91cf\u53c2\u6570"}):(0,X.jsxs)("table",{className:"w-full",children:[
 (0,X.jsx)("thead",{children:(0,X.jsxs)("tr",{className:"bg-slate-50",children:[(0,X.jsx)("th",{className:"text-xs text-slate-400 font-normal text-left px-2 py-1",children:"Key"}),(0,X.jsx)("th",{className:"text-xs text-slate-400 font-normal text-left px-2 py-1",children:"Value"}),(0,X.jsx)("th",{className:"w-6"})]})}),
-(0,X.jsx)("tbody",{children:Object.entries(i.constants||{}).map(([_ck,_cv],_ci)=>(0,X.jsxs)("tr",{className:"border-t border-slate-100",children:[
-(0,X.jsx)("td",{className:"px-2 py-1",children:(0,X.jsx)("input",{type:"text",className:"w-full text-xs border border-slate-200 rounded px-1 py-0.5",value:_ck,onChange:_ev=>{let _ct={};Object.entries(i.constants||{}).forEach(([k,v],idx)=>{_ct[idx===_ci?_ev.target.value:k]=v});_uc("constants",_ct)}})}),
-(0,X.jsx)("td",{className:"px-2 py-1",children:(0,X.jsx)("input",{type:"text",className:"w-full text-xs border border-slate-200 rounded px-1 py-0.5",value:_cv,onChange:_ev=>{let _ct={...i.constants,[_ck]:_ev.target.value};_uc("constants",_ct)}})}),
-(0,X.jsx)("td",{className:"px-1",children:(0,X.jsx)("button",{type:"button",onClick:()=>{let _ct={...i.constants};delete _ct[_ck];_uc("constants",_ct)},className:"text-xs text-red-400 hover:text-red-600",children:"\u00d7"})})
+(0,X.jsx)("tbody",{children:(i.constants||[]).map((_cr,_ci)=>(0,X.jsxs)("tr",{className:"border-t border-slate-100",children:[
+(0,X.jsx)("td",{className:"px-2 py-1",children:(0,X.jsx)("input",{type:"text",className:"w-full text-xs border border-slate-200 rounded px-1 py-0.5",value:_cr.k,onChange:_ev=>{let _ct=[...(i.constants||[])];_ct[_ci]={..._ct[_ci],k:_ev.target.value};_uc("constants",_ct)}})}),
+(0,X.jsx)("td",{className:"px-2 py-1",children:(0,X.jsx)("input",{type:"text",className:"w-full text-xs border border-slate-200 rounded px-1 py-0.5",value:_cr.v,onChange:_ev=>{let _ct=[...(i.constants||[])];_ct[_ci]={..._ct[_ci],v:_ev.target.value};_uc("constants",_ct)}})}),
+(0,X.jsx)("td",{className:"px-1",children:(0,X.jsx)("button",{type:"button",onClick:()=>{let _ct=(i.constants||[]).filter((_,_i2)=>_i2!==_ci);_uc("constants",_ct)},className:"text-xs text-red-400 hover:text-red-600",children:"\u00d7"})})
 ]},_ci))})
 ]})})
 ]}),
