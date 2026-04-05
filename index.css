@@ -1,1 +1,5 @@
 /* Placeholder stylesheet to satisfy the index.css reference so the offline bundle has no 404s. */
+@keyframes antd-toast-in {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
