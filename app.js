@@ -268,7 +268,7 @@ return(0,X.jsxs)("div",{className:"space-y-6",children:[
   let _addThreshold=()=>{let arr=[..._thresholds];let lastIdx=arr.length-1;let newScore=(lastIdx>0&&arr[lastIdx-1].score||0)+20;arr.splice(lastIdx,0,{name:"",score:newScore});t("thresholds",arr)};
   let _removeThreshold=(idx)=>{if(_thresholds.length<=2)return;t("thresholds",_thresholds.filter((_,i)=>i!==idx))};
   let _scoreRange=(idx)=>{let th=_thresholds;if(idx===0)return"score < "+(th[0].score!=null?th[0].score:"?");let prev=th[idx-1].score;let cur=th[idx].score;return cur===null?"score \u2265 "+(prev!=null?prev:"?"):(prev!=null?prev:"?")+" \u2264 score < "+cur};
-  let relatedRules=Or.filter(x=>x.activationName===e.name);
+  let relatedArs=Ar.filter(x=>x.activationName===e.name);let relatedRules=relatedArs.map(ar=>{let rl=Or.find(x=>x.name===ar.ruleName);return rl?{...rl,_priority:ar.priority,_weight:ar.weight}:null}).filter(Boolean).sort((a,b)=>a._priority-b._priority);
   let relatedEP=rn.find(x=>x.eventPoint===e.eventPoint);
   if(r){
     let nameField=(0,X.jsxs)("div",{children:[
@@ -331,9 +331,9 @@ return(0,X.jsxs)("div",{className:"space-y-6",children:[
         (0,X.jsx)("span",{className:"text-xs text-slate-400 ml-auto",children:v.score!=null?"score: "+v.score:"\u221E"})
       ]},S))})
     ]}),
-    relatedRules.length>0&&(0,X.jsxs)("div",{className:"bg-white rounded-lg border border-slate-200 shadow-sm p-6",children:[
+    (0,X.jsxs)("div",{className:"bg-white rounded-lg border border-slate-200 shadow-sm p-6",children:[
       (0,X.jsxs)("h3",{className:"font-semibold text-slate-900 mb-4 flex items-center gap-2 border-b border-slate-100 pb-3",children:[(0,X.jsx)(Ra,{className:"w-5 h-5 text-blue-500"}),"\u5173\u8054\u89C4\u5219 (",relatedRules.length,")"]}),
-      (0,X.jsx)("div",{className:"space-y-2",children:relatedRules.map(v=>(0,X.jsxs)("div",{className:"flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100",children:[(0,X.jsx)("span",{className:"font-medium text-sm text-slate-800",children:v.name}),(0,X.jsx)("span",{className:"text-xs px-2 py-0.5 rounded "+(v.status===1?"bg-green-50 text-green-600":"bg-red-50 text-red-600"),children:fe(v.status)})]},v.id||v.name))})
+      (0,X.jsx)("div",{className:"space-y-2",children:relatedRules.length===0?(0,X.jsx)("div",{className:"text-xs text-slate-400 text-center py-4 border border-dashed border-slate-300 rounded",children:"\u672A\u5173\u8054\u4EFB\u4F55\u89C4\u5219"}):relatedRules.map(v=>(0,X.jsxs)("div",{className:"flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100",children:[(0,X.jsxs)("div",{className:"flex items-center gap-3",children:[(0,X.jsx)("span",{className:"font-medium text-sm text-slate-800",children:v.name}),(0,X.jsx)("span",{className:"text-xs text-slate-400",children:v.description})]}),(0,X.jsxs)("div",{className:"flex items-center gap-3",children:[(0,X.jsxs)("span",{className:"text-xs text-slate-500",children:["\u4F18\u5148\u7EA7:",v._priority]}),(0,X.jsxs)("span",{className:"text-xs text-slate-500",children:["\u6743\u91CD:",v._weight]}),(0,X.jsx)("span",{className:"text-xs px-2 py-0.5 rounded "+(v.status===1?"bg-green-50 text-green-600":"bg-red-50 text-red-600"),children:fe(v.status)})]})]},v.id||v.name))})
     ]})
   ]})
 },acValidate=e=>{if(!e.name||!e.name.trim())return"\u8BF7\u8F93\u5165\u7B56\u7565\u540D\u79F0";if(!e.eventPoint)return"\u8BF7\u9009\u62E9\u6240\u5C5E\u63A5\u5165\u70B9";return null},rlRenderStatus=acRenderStatus
