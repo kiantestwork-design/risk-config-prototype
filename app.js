@@ -344,7 +344,7 @@ return(0,X.jsxs)("div",{className:"space-y-6",children:[
     let _closeModal=()=>{_setShowRulePicker(false);_setSelectedNewRules([]);_setRuleSearch("");_acPicker.page=1};
     let rulePickerModal=_showRulePicker?(0,X.jsx)("div",{className:"fixed inset-0 z-50 flex items-center justify-center",children:(0,X.jsxs)(X.Fragment,{children:[
       (0,X.jsx)("div",{className:"fixed inset-0 bg-black/45 animate-in fade-in duration-150",onClick:_closeModal}),
-      (0,X.jsxs)("div",{className:"relative bg-white rounded-lg shadow-xl w-[720px] flex flex-col animate-in fade-in zoom-in-95 duration-200",style:{boxShadow:"0 6px 16px rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12), 0 9px 28px 8px rgba(0,0,0,0.05)"}},[(0,X.jsxs)("div",{className:"px-6 py-4 flex justify-between items-center",style:{borderBottom:"1px solid rgba(5,5,5,0.06)"},children:[
+      (0,X.jsxs)("div",{className:"relative bg-white rounded-lg shadow-xl w-[720px] flex flex-col animate-in fade-in zoom-in-95 duration-200",style:{boxShadow:"0 6px 16px rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12), 0 9px 28px 8px rgba(0,0,0,0.05)"},children:[(0,X.jsxs)("div",{className:"px-6 py-4 flex justify-between items-center",style:{borderBottom:"1px solid rgba(5,5,5,0.06)"},children:[
           (0,X.jsx)("h3",{className:"text-base font-semibold",style:{color:"rgba(0,0,0,0.88)"},children:"\u4ECE\u89C4\u5219\u5E93\u9009\u62E9\u89C4\u5219"}),
           (0,X.jsx)("button",{type:"button",onClick:_closeModal,className:"text-slate-400 hover:text-slate-600 text-lg leading-none",children:"\u2715"})
         ]}),
@@ -385,7 +385,7 @@ return(0,X.jsxs)("div",{className:"space-y-6",children:[
           (0,X.jsx)("button",{type:"button",onClick:_closeModal,className:"px-4 text-sm border rounded-md hover:bg-slate-50 transition-colors",style:{borderColor:"#d9d9d9",color:"rgba(0,0,0,0.88)",borderRadius:"6px",height:"32px"},children:"\u53D6\u6D88"}),
           (0,X.jsx)("button",{type:"button",onClick:_addRules,disabled:_selectedNewRules.length===0,className:"px-4 text-sm text-white rounded-md transition-colors",style:{background:_selectedNewRules.length>0?"#1890ff":"#91caff",borderRadius:"6px",height:"32px",cursor:_selectedNewRules.length>0?"pointer":"not-allowed"},children:_selectedNewRules.length>0?"\u786E\u8BA4\u6DFB\u52A0 ("+_selectedNewRules.length+")":"\u786E\u8BA4\u6DFB\u52A0"})
         ]})
-      ])
+      ]})
     ]})}):null;
     return(0,X.jsxs)("div",{className:"space-y-6",children:[
       (0,X.jsxs)("div",{className:"bg-white rounded-lg border border-slate-200 shadow-sm p-6",children:[
