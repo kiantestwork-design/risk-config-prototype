@@ -289,11 +289,27 @@ return(0,X.jsxs)("div",{className:"space-y-6",children:[
     ]});
     let _scenes=e.scenes||[];
     let _scToggle=(sc)=>{let arr=_scenes.includes(sc)?_scenes.filter(x=>x!==sc):[..._scenes,sc];t("scenes",arr)};
+    let _scOpen=!!_msState["ac_scenes"],_scSearch=_msState["ac_scenes_q"]||"";
+    let _scFiltered=Sc.filter(sc=>!_scSearch||sc.toLowerCase().includes(_scSearch.toLowerCase()));
     let scenesField=(0,X.jsxs)("div",{className:"col-span-2",children:[
       (0,X.jsx)("label",{className:"block text-sm font-medium text-slate-700 mb-2",children:"\u573A\u666F"}),
-      (0,X.jsxs)("div",{children:[
-        (0,X.jsx)("div",{className:"flex flex-wrap gap-2",children:Sc.map(sc=>{let sel=_scenes.includes(sc);return(0,X.jsx)("button",{type:"button",onClick:()=>_scToggle(sc),className:`px-3 py-1.5 text-xs rounded-md border transition-colors ${sel?"bg-indigo-50 text-indigo-700 border-indigo-300 font-medium":"bg-white text-slate-600 border-slate-300 hover:border-indigo-300 hover:text-indigo-600"}`,children:sc},sc)})}),
-        (0,X.jsx)("div",{className:"mt-2 text-xs text-slate-400",children:_scenes.length===0?"\u2139\uFE0F \u672A\u9009\u62E9\u573A\u666F\uFF0C\u9ED8\u8BA4\u547D\u4E2D\u6240\u6709\u573A\u666F":"\u5DF2\u9009 "+_scenes.length+" \u4E2A\u573A\u666F"})
+      (0,X.jsxs)("div",{className:"relative",children:[
+        (0,X.jsxs)("div",{onClick:()=>{_msState["ac_scenes"]=!_scOpen;_msState["ac_scenes_q"]="";t("_refresh",Date.now())},className:"flex items-center justify-between border rounded-md px-3 py-2 bg-white cursor-pointer transition-colors min-h-[38px] "+(_scOpen?"border-blue-400 ring-1 ring-blue-400":"border-slate-300 hover:border-blue-400"),children:[
+          _scenes.length===0?(0,X.jsx)("span",{className:"text-sm text-slate-400",children:"\u8BF7\u9009\u62E9\u573A\u666F\uFF08\u4E0D\u9009\u9ED8\u8BA4\u547D\u4E2D\u6240\u6709\uFF09"})
+          :(0,X.jsx)("div",{className:"flex flex-wrap gap-1.5",children:_scenes.map(sc=>(0,X.jsxs)("span",{className:"inline-flex items-center bg-blue-50 text-blue-700 border border-blue-200 text-xs px-2 py-0.5 rounded",children:[sc,(0,X.jsx)("span",{onClick:ev=>{ev.stopPropagation();_scToggle(sc)},className:"ml-1.5 text-blue-400 hover:text-blue-600 cursor-pointer font-bold text-[10px] leading-none",children:"\u2715"})]},sc))}),
+          (0,X.jsxs)("div",{className:"flex items-center gap-1 shrink-0 ml-2",children:[_scenes.length>0&&(0,X.jsx)("span",{onClick:ev=>{ev.stopPropagation();t("scenes",[])},className:"text-slate-300 hover:text-slate-500 text-xs cursor-pointer",children:"\u2715"}),(0,X.jsx)("span",{className:"text-slate-400 text-[10px] transition-transform "+(_scOpen?"rotate-180":""),children:"\u25BE"})]})
+        ]}),
+        _scOpen&&(0,X.jsxs)(X.Fragment,{children:[
+          (0,X.jsx)("div",{className:"fixed inset-0 z-40",onClick:()=>{_msState["ac_scenes"]=false;_msState["ac_scenes_q"]="";t("_refresh",Date.now())}}),
+          (0,X.jsxs)("div",{className:"absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg animate-in fade-in slide-in-from-top-1 duration-150",style:{boxShadow:"0 6px 16px rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12)"},children:[
+            (0,X.jsx)("div",{className:"p-2 border-b border-slate-100",children:(0,X.jsx)("input",{type:"text",className:"w-full border border-slate-200 rounded px-2.5 py-1.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400",placeholder:"\u641C\u7D22\u573A\u666F...",value:_scSearch,onClick:ev=>ev.stopPropagation(),onChange:ev=>{_msState["ac_scenes_q"]=ev.target.value;t("_refresh",Date.now())}})}),
+            (0,X.jsx)("div",{className:"max-h-48 overflow-y-auto py-1",children:_scFiltered.length===0?(0,X.jsx)("div",{className:"text-center py-4 text-xs text-slate-400",children:"\u65E0\u5339\u914D\u573A\u666F"})
+            :_scFiltered.map(sc=>{let checked=_scenes.includes(sc);return(0,X.jsxs)("div",{className:"flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-blue-50 transition-colors text-sm",onClick:()=>_scToggle(sc),children:[
+              (0,X.jsx)("div",{className:"w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors "+(checked?"bg-[#1890ff] border-[#1890ff]":"border-slate-300 bg-white"),children:checked&&(0,X.jsx)("span",{className:"text-white text-[10px] font-bold leading-none",children:"\u2713"})}),
+              (0,X.jsx)("span",{className:checked?"text-slate-800 font-medium":"text-slate-600",children:sc})
+            ]},sc)})})
+          ]})
+        ]})
       ]})
     ]});
         let statusField=(0,X.jsxs)("div",{children:[
