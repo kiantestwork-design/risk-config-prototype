@@ -488,11 +488,29 @@ return(0,X.jsxs)("div",{className:"space-y-6",children:[
         (0,X.jsxs)("button",{type:"button",onClick:_addAction,className:"text-xs flex items-center text-white bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded",children:[(0,X.jsx)(ft,{className:"w-3 h-3 mr-1"}),"\u6DFB\u52A0\u52A8\u4F5C"]})
       ]}),
       (0,X.jsx)("div",{className:"space-y-3",children:_actions.length===0?(0,X.jsx)("div",{className:"text-xs text-slate-400 text-center py-4 border border-dashed border-slate-300 rounded",children:"\u65E0\u5173\u8054\u52A8\u4F5C"}):_actions.map((v,S)=>{let _sch=_getSchema(v.actionName);let _cf=_getConf(v);let _keys=Object.keys(_sch);return(0,X.jsxs)("div",{className:"p-4 bg-slate-50 rounded-lg border border-slate-100 space-y-3",children:[
-        (0,X.jsxs)("div",{className:"flex items-center gap-3",children:[
-          (0,X.jsx)("select",{className:"flex-1 text-sm border border-slate-300 rounded px-2 py-1.5 bg-white",value:v.actionName,onChange:C=>_selectAction(S,C.target.value),children:[(0,X.jsx)("option",{value:"",children:"\u8BF7\u9009\u62E9\u52A8\u4F5C..."}),Ks.map(C=>(0,X.jsxs)("option",{value:C.name,children:[C.name," (",C.type,")"]},C.name))]}),
-          (0,X.jsxs)("select",{className:"w-24 text-xs border border-slate-300 rounded px-2 py-1.5 bg-white",value:v.executionMode||"sync",onChange:C=>_updateAction(S,"executionMode",C.target.value),children:[(0,X.jsx)("option",{value:"sync",children:"\u540C\u6B65"}),(0,X.jsx)("option",{value:"async",children:"\u5F02\u6B65"})]}),
-          (0,X.jsx)("input",{type:"number",className:"w-16 text-xs border border-slate-300 rounded px-2 py-1.5 text-center",value:v.priority||S+1,onChange:C=>_updateAction(S,"priority",parseInt(C.target.value)||1),title:"\u4F18\u5148\u7EA7"}),
-          (0,X.jsx)("button",{type:"button",onClick:()=>_removeAction(S),className:"text-slate-400 hover:text-red-500 shrink-0",children:(0,X.jsx)(ot,{className:"w-4 h-4"})})
+        (0,X.jsxs)("div",{className:"space-y-3",children:[
+          (0,X.jsxs)("div",{className:"flex items-center justify-between",children:[
+            (0,X.jsxs)("div",{className:"flex items-center gap-2",children:[
+              (0,X.jsx)("span",{className:"text-xs font-bold px-1.5 py-0.5 rounded border "+(v.actionType==="TAG"?"bg-green-50 text-green-700 border-green-200":v.actionType==="HTTP"?"bg-blue-50 text-blue-700 border-blue-200":v.actionType==="DUBBO"?"bg-purple-50 text-purple-700 border-purple-200":"bg-slate-100 text-slate-500 border-slate-200"),children:v.actionType||"-"}),
+              (0,X.jsx)("span",{className:"text-sm font-medium text-slate-800",children:(()=>{let _found=Ks.find(x=>x.name===v.actionName);return _found?_found.description:v.actionName||"\u672A\u9009\u62E9"})()}),
+              v.actionName&&(0,X.jsx)("span",{className:"text-xs text-slate-400 font-mono",children:v.actionName})
+            ]}),
+            (0,X.jsx)("button",{type:"button",onClick:()=>_removeAction(S),className:"text-slate-300 hover:text-red-500 transition-colors",children:(0,X.jsx)(ot,{className:"w-4 h-4"})})
+          ]}),
+          (0,X.jsxs)("div",{className:"grid grid-cols-3 gap-3",children:[
+            (0,X.jsxs)("div",{children:[
+              (0,X.jsx)("label",{className:"block text-[11px] text-slate-500 mb-1",children:"\u9009\u62E9\u52A8\u4F5C"}),
+              (0,X.jsx)("select",{className:"w-full text-xs border border-slate-200 rounded-md px-2.5 py-1.5 bg-white focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400",value:v.actionName,onChange:C=>_selectAction(S,C.target.value),children:[(0,X.jsx)("option",{value:"",children:"\u8BF7\u9009\u62E9..."}),Ks.map(C=>(0,X.jsxs)("option",{value:C.name,children:[C.description," (",C.type,")"]},C.name))]})
+            ]}),
+            (0,X.jsxs)("div",{children:[
+              (0,X.jsx)("label",{className:"block text-[11px] text-slate-500 mb-1",children:"\u6267\u884C\u65B9\u5F0F"}),
+              (0,X.jsxs)("select",{className:"w-full text-xs border border-slate-200 rounded-md px-2.5 py-1.5 bg-white focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400",value:v.executionMode||"sync",onChange:C=>_updateAction(S,"executionMode",C.target.value),children:[(0,X.jsx)("option",{value:"sync",children:"\u540C\u6B65"}),(0,X.jsx)("option",{value:"async",children:"\u5F02\u6B65"})]})
+            ]}),
+            (0,X.jsxs)("div",{children:[
+              (0,X.jsx)("label",{className:"block text-[11px] text-slate-500 mb-1",children:"\u4F18\u5148\u7EA7"}),
+              (0,X.jsx)("input",{type:"number",className:"w-full text-xs border border-slate-200 rounded-md px-2.5 py-1.5 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400",value:v.priority||S+1,onChange:C=>_updateAction(S,"priority",parseInt(C.target.value)||1)})
+            ]})
+          ]})
         ]}),
         _keys.length>0&&(()=>{let _kvKeys=_keys.filter(k2=>k2==="paramMapping"||k2==="constants");let _normalKeys=_keys.filter(k2=>k2!=="paramMapping"&&k2!=="constants");let _parseKv=(str)=>{if(!str)return[];return str.split(",").map(p2=>{let eqIdx=p2.indexOf("=");if(eqIdx<0)return{key:p2,value:""};return{key:p2.slice(0,eqIdx),value:p2.slice(eqIdx+1)}})};let _serializeKv=(arr)=>arr.map(p2=>p2.key+"="+p2.value).join(",");return(0,X.jsxs)("div",{className:"mt-3 bg-white rounded-lg border border-slate-200 p-4 space-y-4",children:[
           _normalKeys.length>0&&(0,X.jsxs)("div",{className:"space-y-3",children:[
