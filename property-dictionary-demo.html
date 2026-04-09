@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>标准属性字典</title>
+  <script src="./tailwind-cdn.js"></script>
+  <script src="https://unpkg.com/react@19/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@19/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link rel="stylesheet" href="./index.css" />
+  <style>
+    body { background: #f0f2f5; color: rgba(0,0,0,0.88); font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; }
+    .expand-section { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.3s ease; }
+    .expand-section.open { grid-template-rows: 1fr; }
+    .expand-inner { overflow: hidden; }
+    .confirm-popover {
+      position: absolute; right: 0; top: 100%; z-index: 10; margin-top: 4px;
+      background: white; border-radius: 8px; padding: 12px 16px; white-space: nowrap;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12), 0 9px 28px 8px rgba(0,0,0,0.05);
+    }
+    .editing-row { background: #fffbe6 !important; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useRef, useEffect, useCallback, useMemo } = React;
+
+    /* ================================================================
+     *  常量 & Mock 数据
+     * ================================================================ */
+    const FIELD_TYPES = [
+      { value: 'STRING', label: '字符串 STRING' },
+      { value: 'INTEGER', label: '整数 INTEGER' },
+      { value: 'LONG', label: '长整数 LONG' },
+      { value: 'DOUBLE', label: '浮点数 DOUBLE' },
+      { value: 'BOOLEAN', label: '布尔 BOOLEAN' },
+      { value: 'LIST', label: '列表 LIST' },
+      { value: 'JSON', label: 'JSON 对象' },
+    ];
+
+    const VALIDATE_TYPES = [
+      { value: '', label: '不校验' },
+      { value: 'STRING', label: '字符串' },
+      { value: 'INTEGER', label: '整数' },
+      { value: 'LONG', label: '长整数' },
+      { value: 'DOUBLE', label: '数字' },
+      { value: 'BOOLEAN', label: '布尔' },
+      { value: 'LENGTH', label: '长度校验' },
+      { value: 'MOBILE', label: '手机号' },
+      { value: 'EMAIL', label: '邮箱' },
+      { value: 'IP', label: 'IP 地址' },
+      { value: 'REGEX', label: '正则表达式' },
+    ];
+
+    const MOCK_STANDARD_PROPERTIES = [
+      { id: '1', name: 'user_id', description: '用户ID', fieldType: 'STRING', validateType: 'STRING', validateArgs: '', status: 1, refCount: 3 },
+      { id: '2', name: 'trade_amount', description: '交易金额', fieldType: 'DOUBLE', validateType: 'DOUBLE', validateArgs: '', status: 1, refCount: 2 },
+      { id: '3', name: 'target_address', description: '提现目标地址', fieldType: 'STRING', validateType: 'LENGTH', validateArgs: '42', status: 1, refCount: 1 },
+      { id: '4', name: 'asset_type', description: '币种', fieldType: 'STRING', validateType: 'STRING', validateArgs: '', status: 1, refCount: 2 },
+      { id: '5', name: 'client_ip', description: '客户端IP', fieldType: 'STRING', validateType: 'IP', validateArgs: '', status: 1, refCount: 3 },
+      { id: '6', name: 'device_id', description: '设备ID', fieldType: 'STRING', validateType: 'STRING', validateArgs: '', status: 1, refCount: 1 },
+      { id: '7', name: 'platform', description: '登录平台', fieldType: 'STRING', validateType: 'STRING', validateArgs: '', status: 1, refCount: 1 },
+      { id: '8', name: 'request_id', description: '请求唯一标识', fieldType: 'STRING', validateType: '', validateArgs: '', status: 0, refCount: 0 },
+    ];
+
+    /* ================================================================
+     *  通用子组件
+     * ================================================================ */
+
+    /* SearchSelect — 搜索下拉单选 */
+    function SearchSelect({ value, onChange, options, placeholder, renderOption, disabled }) {
+      const [open, setOpen] = useState(false);
+      const [search, setSearch] = useState('');
+      const ref = useRef(null);
+      useEffect(() => {
+        const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+      }, []);
+      const filtered = options.filter(o => {
+        const label = renderOption ? renderOption(o) : o.label || o.name || '';
+        return label.toLowerCase().includes(search.toLowerCase());
+      });
+      const selected = options.find(o => (o.value !== undefined ? o.value : o.id || o.name) === value);
+      const displayText = selected ? (renderOption ? renderOption(selected) : selected.label || selected.name || '') : '';
+      return (
+        <div className="relative" ref={ref}>
+          <div className={`flex items-center border rounded-md px-3 h-8 bg-white transition-colors ${disabled ? 'bg-[#f5f5f5] cursor-not-allowed border-[#d9d9d9]' : 'cursor-pointer border-[#d9d9d9] hover:border-[#1890ff]'}`}
+            onClick={() => !disabled && setOpen(!open)}>
+            <span className={`flex-1 text-sm truncate ${displayText ? 'text-[rgba(0,0,0,0.88)]' : 'text-[rgba(0,0,0,0.25)]'}`}>{displayText || placeholder}</span>
+            <svg className="w-3 h-3 ml-1 text-[rgba(0,0,0,0.25)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+          </div>
+          {open && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-[#f0f0f0] z-20 py-1 max-h-60 overflow-auto">
+              <div className="px-2 py-1.5">
+                <input type="text" className="w-full border border-[#d9d9d9] rounded px-2 h-7 text-sm outline-none focus:border-[#1890ff]"
+                  placeholder="搜索..." value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
+              </div>
+              {filtered.length === 0 && <div className="px-3 py-2 text-sm text-[rgba(0,0,0,0.25)]">无匹配项</div>}
+              {filtered.map(o => {
+                const key = o.value !== undefined ? o.value : o.id || o.name;
+                const label = renderOption ? renderOption(o) : o.label || o.name || '';
+                return (
+                  <div key={key} className={`px-3 py-1.5 text-sm cursor-pointer transition-colors ${key === value ? 'bg-[#e6f7ff] text-[#1890ff]' : 'hover:bg-[#f5f5f5]'}`}
+                    onClick={() => { onChange(key); setOpen(false); setSearch(''); }}>
+                    {label}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    /* ConfirmPopover — 内联确认气泡 */
+    function ConfirmPopover({ visible, onConfirm, onCancel, message }) {
+      if (!visible) return null;
+      return (
+        <div className="confirm-popover">
+          <div className="text-sm text-[rgba(0,0,0,0.88)] mb-2 flex items-center gap-1.5">
+            <svg className="w-4 h-4 text-[#faad14] flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            {message}
+          </div>
+          <div className="flex justify-end gap-2">
+            <button className="h-6 px-2 text-xs rounded border border-[#d9d9d9] bg-white text-[rgba(0,0,0,0.65)] hover:border-[#1890ff] hover:text-[#1890ff] transition-colors" onClick={onCancel}>取消</button>
+            <button className="h-6 px-2 text-xs rounded bg-[#ff4d4f] text-white border-none hover:bg-[#ff7875] transition-colors" onClick={onConfirm}>确认删除</button>
+          </div>
+        </div>
+      );
+    }
+
+    /* StatusToggle — 启用/禁用开关 */
+    function StatusToggle({ enabled, onChange }) {
+      return (
+        <button
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${enabled ? 'bg-[#1890ff]' : 'bg-[rgba(0,0,0,0.25)]'}`}
+          onClick={() => onChange(!enabled)}
+        >
+          <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
+        </button>
+      );
+    }
+
+    /* FieldTypeTag — 类型彩色标签 */
+    function FieldTypeTag({ type }) {
+      const colorMap = {
+        STRING: { color: '#1890ff', bg: '#e6f7ff' },
+        INTEGER: { color: '#722ed1', bg: '#f9f0ff' },
+        LONG: { color: '#722ed1', bg: '#f9f0ff' },
+        DOUBLE: { color: '#fa8c16', bg: '#fff7e6' },
+        BOOLEAN: { color: '#52c41a', bg: '#f6ffed' },
+        LIST: { color: '#13c2c2', bg: '#e6fffb' },
+        JSON: { color: '#eb2f96', bg: '#fff0f6' },
+      };
+      const c = colorMap[type] || colorMap.STRING;
+      return (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono whitespace-nowrap flex-shrink-0"
+          style={{ color: c.color, background: c.bg, border: `1px solid ${c.color}25` }}>
+          {type}
+        </span>
+      );
+    }
+
+    /* ValidateTag — 校验规则标签 + 参数 */
+    function ValidateTag({ type, args }) {
+      if (!type) return <span className="text-[rgba(0,0,0,0.25)]">-</span>;
+      const label = VALIDATE_TYPES.find(v => v.value === type)?.label || type;
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-[rgba(0,0,0,0.65)]">
+          <span className="px-1.5 py-0.5 rounded bg-[#f5f5f5]">{label}</span>
+          {args && <code className="text-[#722ed1] bg-[#f9f0ff] px-1 py-0.5 rounded">{args}</code>}
+        </span>
+      );
+    }
+
+    /* MultiSelectFilter — 多选下拉筛选 */
+    function MultiSelectFilter({ value, onChange, options, placeholder }) {
+      const [open, setOpen] = useState(false);
+      const ref = useRef(null);
+      useEffect(() => {
+        const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+      }, []);
+      const toggle = (val) => {
+        if (value.includes(val)) {
+          onChange(value.filter(v => v !== val));
+        } else {
+          onChange([...value, val]);
+        }
+      };
+      const removeTag = (e, val) => {
+        e.stopPropagation();
+        onChange(value.filter(v => v !== val));
+      };
+      return (
+        <div className="relative" ref={ref}>
+          <div className="flex items-center flex-wrap gap-1 border rounded-md px-2 min-h-[32px] bg-white cursor-pointer border-[#d9d9d9] hover:border-[#1890ff] transition-colors"
+            onClick={() => setOpen(!open)}>
+            {value.length === 0 && <span className="text-sm text-[rgba(0,0,0,0.25)] py-1">{placeholder}</span>}
+            {value.map(v => {
+              const opt = options.find(o => o.value === v);
+              return (
+                <span key={v} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[#e6f7ff] text-[#1890ff] text-xs whitespace-nowrap flex-shrink-0">
+                  {opt?.label || v}
+                  <svg className="w-3 h-3 cursor-pointer hover:text-[#ff4d4f]" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    onClick={(e) => removeTag(e, v)}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </span>
+              );
+            })}
+            <svg className="w-3 h-3 ml-auto text-[rgba(0,0,0,0.25)] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+          </div>
+          {open && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-[#f0f0f0] z-20 py-1 max-h-60 overflow-auto">
+              {options.map(o => (
+                <div key={o.value} className="px-3 py-1.5 text-sm cursor-pointer hover:bg-[#f5f5f5] flex items-center gap-2 transition-colors"
+                  onClick={() => toggle(o.value)}>
+                  <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${value.includes(o.value) ? 'bg-[#1890ff] border-[#1890ff]' : 'border-[#d9d9d9]'}`}>
+                    {value.includes(o.value) && (
+                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                    )}
+                  </span>
+                  {o.label}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    /* ================================================================
+     *  PropertyDictionary 主组件
+     * ================================================================ */
+    function PropertyDictionary({ triggerAdd, setTriggerAdd }) {
+      const [properties, setProperties] = useState(MOCK_STANDARD_PROPERTIES);
+      const [searchText, setSearchText] = useState('');
+      const [typeFilter, setTypeFilter] = useState([]);
+      const [addingNew, setAddingNew] = useState(false);
+      const [editingId, setEditingId] = useState(null);
+      const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+      const [errors, setErrors] = useState({});
+
+      const emptyForm = { name: '', description: '', fieldType: 'STRING', validateType: '', validateArgs: '' };
+      const [newForm, setNewForm] = useState({ ...emptyForm });
+      const [editForm, setEditForm] = useState({ ...emptyForm });
+
+      // 处理外部触发新增
+      useEffect(() => {
+        if (triggerAdd) {
+          setEditingId(null);
+          setAddingNew(true);
+          setNewForm({ ...emptyForm });
+          setErrors({});
+          setTriggerAdd(false);
+        }
+      }, [triggerAdd]);
+
+      // 过滤
+      const filtered = useMemo(() => {
+        return properties.filter(p => {
+          const matchSearch = !searchText || p.name.toLowerCase().includes(searchText.toLowerCase()) || p.description.toLowerCase().includes(searchText.toLowerCase());
+          const matchType = typeFilter.length === 0 || typeFilter.includes(p.fieldType);
+          return matchSearch && matchType;
+        });
+      }, [properties, searchText, typeFilter]);
+
+      // 校验表单
+      const validateForm = (form, isEdit) => {
+        const errs = {};
+        if (!form.name.trim()) {
+          errs.name = '属性名不能为空';
+        } else if (!/^[a-z][a-z0-9_]*$/.test(form.name)) {
+          errs.name = '属性名必须以小写字母开头，只能包含小写字母、数字和下划线';
+        } else if (!isEdit && properties.some(p => p.name === form.name)) {
+          errs.name = '属性名已存在';
+        }
+        if (!form.description.trim()) {
+          errs.description = '描述不能为空';
+        }
+        if (form.validateType === 'LENGTH') {
+          if (!form.validateArgs || !/^\d+$/.test(form.validateArgs) || parseInt(form.validateArgs) <= 0) {
+            errs.validateArgs = '请输入正整数';
+          }
+        }
+        if (form.validateType === 'REGEX' && form.validateArgs) {
+          try {
+            new RegExp(form.validateArgs);
+          } catch (e) {
+            errs.validateArgs = '无效的正则表达式';
+          }
+        }
+        return errs;
+      };
+
+      // 开始编辑
+      const startEdit = (prop) => {
+        setAddingNew(false);
+        setEditingId(prop.id);
+        setEditForm({
+          name: prop.name,
+          description: prop.description,
+          fieldType: prop.fieldType,
+          validateType: prop.validateType,
+          validateArgs: prop.validateArgs,
+        });
+        setErrors({});
+      };
+
+      // 保存新增
+      const saveNew = () => {
+        const errs = validateForm(newForm, false);
+        if (Object.keys(errs).length > 0) {
+          setErrors(errs);
+          return;
+        }
+        const newProp = {
+          id: String(Date.now()),
+          name: newForm.name,
+          description: newForm.description,
+          fieldType: newForm.fieldType,
+          validateType: newForm.validateType,
+          validateArgs: newForm.validateArgs,
+          status: 1,
+          refCount: 0,
+        };
+        setProperties([...properties, newProp]);
+        setAddingNew(false);
+        setNewForm({ ...emptyForm });
+        setErrors({});
+      };
+
+      // 保存编辑
+      const saveEdit = () => {
+        const errs = validateForm(editForm, true);
+        if (Object.keys(errs).length > 0) {
+          setErrors(errs);
+          return;
+        }
+        setProperties(properties.map(p => p.id === editingId ? {
+          ...p,
+          description: editForm.description,
+          fieldType: editForm.fieldType,
+          validateType: editForm.validateType,
+          validateArgs: editForm.validateArgs,
+        } : p));
+        setEditingId(null);
+        setErrors({});
+      };
+
+      // 删除
+      const handleDelete = (id) => {
+        setProperties(properties.filter(p => p.id !== id));
+        setDeleteConfirmId(null);
+      };
+
+      // 渲染内联表单
+      const renderForm = (form, setForm, onSave, onCancel, isEdit) => {
+        const needArgs = form.validateType === 'LENGTH' || form.validateType === 'REGEX';
+        const argsPlaceholder = form.validateType === 'LENGTH' ? '请输入目标长度' : form.validateType === 'REGEX' ? '请输入正则表达式' : '';
+
+        return (
+          <div className="bg-[#fafafa] px-4 py-4" style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.04)' }}>
+            <div className="grid grid-cols-3 gap-x-4 gap-y-3">
+              {/* 标准属性名 */}
+              <div>
+                <label className="block text-xs text-[rgba(0,0,0,0.65)] mb-1">标准属性名</label>
+                <input
+                  type="text"
+                  className={`w-full border rounded-md px-3 h-8 text-sm font-mono outline-none transition-colors ${isEdit ? 'bg-[#f5f5f5] cursor-not-allowed border-[#d9d9d9]' : 'bg-white border-[#d9d9d9] focus:border-[#1890ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]'} ${errors.name ? 'border-[#ff4d4f]' : ''}`}
+                  placeholder="如：user_id"
+                  value={form.name}
+                  onChange={(e) => { setForm({ ...form, name: e.target.value }); setErrors({ ...errors, name: undefined }); }}
+                  readOnly={isEdit}
+                />
+                {errors.name && <div className="text-xs text-[#ff4d4f] mt-0.5">{errors.name}</div>}
+              </div>
+              {/* 中文描述 */}
+              <div>
+                <label className="block text-xs text-[rgba(0,0,0,0.65)] mb-1">中文描述</label>
+                <input
+                  type="text"
+                  className={`w-full border rounded-md px-3 h-8 text-sm outline-none bg-white transition-colors border-[#d9d9d9] focus:border-[#1890ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)] ${errors.description ? 'border-[#ff4d4f]' : ''}`}
+                  placeholder="如：用户ID"
+                  value={form.description}
+                  onChange={(e) => { setForm({ ...form, description: e.target.value }); setErrors({ ...errors, description: undefined }); }}
+                />
+                {errors.description && <div className="text-xs text-[#ff4d4f] mt-0.5">{errors.description}</div>}
+              </div>
+              {/* 字段类型 */}
+              <div>
+                <label className="block text-xs text-[rgba(0,0,0,0.65)] mb-1">字段类型</label>
+                <SearchSelect
+                  value={form.fieldType}
+                  onChange={(v) => setForm({ ...form, fieldType: v })}
+                  options={FIELD_TYPES}
+                  placeholder="选择字段类型"
+                />
+              </div>
+              {/* 校验类型 */}
+              <div>
+                <label className="block text-xs text-[rgba(0,0,0,0.65)] mb-1">校验类型</label>
+                <SearchSelect
+                  value={form.validateType}
+                  onChange={(v) => {
+                    const newArgs = (v === 'LENGTH' || v === 'REGEX') ? form.validateArgs : '';
+                    setForm({ ...form, validateType: v, validateArgs: newArgs });
+                    setErrors({ ...errors, validateArgs: undefined });
+                  }}
+                  options={VALIDATE_TYPES}
+                  placeholder="选择校验类型"
+                />
+              </div>
+              {/* 校验参数 */}
+              {form.validateType !== '' && (
+                <div>
+                  <label className="block text-xs text-[rgba(0,0,0,0.65)] mb-1">校验参数</label>
+                  <input
+                    type="text"
+                    className={`w-full border rounded-md px-3 h-8 text-sm outline-none transition-colors ${!needArgs ? 'bg-[#f5f5f5] cursor-not-allowed border-[#d9d9d9]' : 'bg-white border-[#d9d9d9] focus:border-[#1890ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]'} ${errors.validateArgs ? 'border-[#ff4d4f]' : ''}`}
+                    placeholder={argsPlaceholder}
+                    value={form.validateArgs}
+                    onChange={(e) => { setForm({ ...form, validateArgs: e.target.value }); setErrors({ ...errors, validateArgs: undefined }); }}
+                    disabled={!needArgs}
+                  />
+                  {errors.validateArgs && <div className="text-xs text-[#ff4d4f] mt-0.5">{errors.validateArgs}</div>}
+                </div>
+              )}
+              {/* 按钮占位对齐到右下角 */}
+              <div className={`flex items-end justify-end gap-2 ${form.validateType !== '' ? '' : 'col-start-3'}`}>
+                <button className="h-8 px-4 text-sm rounded-md border border-[#d9d9d9] bg-white text-[rgba(0,0,0,0.65)] hover:border-[#1890ff] hover:text-[#1890ff] transition-colors"
+                  onClick={onCancel}>取消</button>
+                <button className="h-8 px-4 text-sm rounded-md bg-[#1890ff] text-white border-none hover:bg-[#40a9ff] transition-colors"
+                  onClick={onSave}>保存</button>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      return (
+        <div>
+          {/* 筛选区 */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex-1 max-w-xs">
+              <input
+                type="text"
+                className="w-full border border-[#d9d9d9] rounded-md px-3 h-8 text-sm outline-none bg-white focus:border-[#1890ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)] transition-colors"
+                placeholder="搜索属性名或描述"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+              />
+            </div>
+            <div className="w-64">
+              <MultiSelectFilter
+                value={typeFilter}
+                onChange={setTypeFilter}
+                options={FIELD_TYPES}
+                placeholder="筛选字段类型"
+              />
+            </div>
+          </div>
+
+          {/* 表格 */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+            <table className="w-full" style={{ tableLayout: 'auto' }}>
+              <thead>
+                <tr className="bg-[#fafafa] border-b border-[#f0f0f0]">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]">属性信息</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]">字段类型</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]">校验规则</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]">引用数</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-[rgba(0,0,0,0.65)] w-[90px]">状态</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-[rgba(0,0,0,0.65)] w-[100px]">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(prop => (
+                  <React.Fragment key={prop.id}>
+                    <tr className={`border-b border-[#f0f0f0] hover:bg-[#fafafa] transition-colors ${editingId === prop.id ? 'editing-row' : ''}`}>
+                      {/* 属性信息 */}
+                      <td className="px-3 py-3">
+                        <div className="text-sm font-mono text-[#1890ff] cursor-pointer hover:underline">{prop.name}</div>
+                        <div className="text-xs text-[rgba(0,0,0,0.45)] mt-0.5">{prop.description}</div>
+                      </td>
+                      {/* 字段类型 */}
+                      <td className="px-3 py-3">
+                        <FieldTypeTag type={prop.fieldType} />
+                      </td>
+                      {/* 校验规则 */}
+                      <td className="px-3 py-3">
+                        <ValidateTag type={prop.validateType} args={prop.validateArgs} />
+                      </td>
+                      {/* 引用数 */}
+                      <td className="px-3 py-3">
+                        <span className="text-xs text-[rgba(0,0,0,0.45)]">{prop.refCount} 个接入点</span>
+                      </td>
+                      {/* 状态 */}
+                      <td className="px-3 py-3 text-center">
+                        <StatusToggle
+                          enabled={prop.status === 1}
+                          onChange={(v) => setProperties(properties.map(p => p.id === prop.id ? { ...p, status: v ? 1 : 0 } : p))}
+                        />
+                      </td>
+                      {/* 操作 */}
+                      <td className="px-3 py-3 text-center w-[100px]">
+                        <div className="relative inline-flex items-center gap-2">
+                          <button className="text-xs text-[#1890ff] hover:text-[#40a9ff] transition-colors"
+                            onClick={() => startEdit(prop)}>编辑</button>
+                          <button className="text-xs text-[#ff4d4f] hover:text-[#ff7875] transition-colors"
+                            onClick={() => setDeleteConfirmId(prop.id)}>删除</button>
+                          <ConfirmPopover
+                            visible={deleteConfirmId === prop.id}
+                            onConfirm={() => handleDelete(prop.id)}
+                            onCancel={() => setDeleteConfirmId(null)}
+                            message={prop.refCount > 0 ? `该属性正在被 ${prop.refCount} 个接入点使用，确认删除？` : '确认删除该属性？'}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                    {/* 编辑表单 */}
+                    <tr>
+                      <td colSpan={6} className="p-0">
+                        <div className={`expand-section ${editingId === prop.id ? 'open' : ''}`}>
+                          <div className="expand-inner">
+                            {editingId === prop.id && renderForm(
+                              editForm,
+                              setEditForm,
+                              saveEdit,
+                              () => { setEditingId(null); setErrors({}); },
+                              true
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  </React.Fragment>
+                ))}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-8 text-center text-sm text-[rgba(0,0,0,0.25)]">暂无数据</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            {/* 新增表单 */}
+            <div className={`expand-section ${addingNew ? 'open' : ''}`}>
+              <div className="expand-inner">
+                {addingNew && renderForm(
+                  newForm,
+                  setNewForm,
+                  saveNew,
+                  () => { setAddingNew(false); setErrors({}); setNewForm({ ...emptyForm }); },
+                  false
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ================================================================
+     *  App 根组件
+     * ================================================================ */
+    function App() {
+      const [triggerAdd, setTriggerAdd] = useState(false);
+
+      return (
+        <div className="min-h-screen">
+          <div className="max-w-[1600px] mx-auto p-6">
+            {/* 面包屑 */}
+            <div className="text-sm text-[rgba(0,0,0,0.45)] mb-4">
+              <span className="hover:text-[#1890ff] cursor-pointer transition-colors">全局配置</span>
+              <span className="mx-2">/</span>
+              <span className="text-[rgba(0,0,0,0.88)]">标准属性字典</span>
+            </div>
+
+            {/* 标题区 */}
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h1 className="text-xl font-semibold text-[rgba(0,0,0,0.88)]">标准属性字典</h1>
+                <p className="text-sm text-[rgba(0,0,0,0.45)] mt-1">定义风控系统的标准属性，各接入点引用这些属性并配置提取路径</p>
+              </div>
+              <button
+                className="h-8 px-4 text-sm rounded-md bg-[#1890ff] text-white border-none hover:bg-[#40a9ff] transition-colors flex items-center gap-1"
+                onClick={() => setTriggerAdd(true)}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                新增标准属性
+              </button>
+            </div>
+
+            {/* 主内容 */}
+            <PropertyDictionary triggerAdd={triggerAdd} setTriggerAdd={setTriggerAdd} />
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
