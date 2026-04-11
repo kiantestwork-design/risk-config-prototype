@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>角色管理</title>
+  <script src="../vendor/react.production.min.js"></script>
+  <script src="../vendor/react-dom.production.min.js"></script>
+  <script src="../vendor/babel.min.js"></script>
+  <script src="../tailwind-cdn.js"></script>
+  <link rel="stylesheet" href="../index.css" />
+  <style>
+    body { background: #f0f2f5; color: rgba(0,0,0,0.88); font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; }
+    .confirm-popover { position: absolute; right: 0; top: 100%; z-index: 10; margin-top: 4px; background: white; border-radius: 8px; padding: 12px 16px; white-space: nowrap; box-shadow: 0 6px 16px rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12), 0 9px 28px 8px rgba(0,0,0,0.05); }
+    .btn-primary { height: 32px; border-radius: 6px; padding: 0 15px; background: #1890ff; color: #fff; border: 1px solid #1890ff; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+    .btn-primary:hover { background: #40a9ff; border-color: #40a9ff; }
+    .btn-default { height: 32px; border-radius: 6px; padding: 0 15px; background: #fff; color: rgba(0,0,0,0.88); border: 1px solid #d9d9d9; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+    .btn-default:hover { border-color: #1890ff; color: #1890ff; }
+    .btn-link { background: none; border: none; color: #1890ff; cursor: pointer; padding: 0 4px; font-size: 14px; }
+    .btn-link:hover { color: #40a9ff; }
+    .btn-link-danger { background: none; border: none; color: #ff4d4f; cursor: pointer; padding: 0 4px; font-size: 14px; }
+    .btn-link-danger:hover { color: #ff7875; }
+    .btn-link-disabled { background: none; border: none; color: rgba(0,0,0,0.25); cursor: not-allowed; padding: 0 4px; font-size: 14px; }
+    .form-input { height: 32px; border: 1px solid #d9d9d9; border-radius: 6px; padding: 0 11px; font-size: 14px; color: rgba(0,0,0,0.88); outline: none; width: 100%; box-sizing: border-box; }
+    .form-input:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.2); }
+    .form-input:disabled { background: #f5f5f5; color: rgba(0,0,0,0.65); cursor: not-allowed; }
+    .form-textarea { border: 1px solid #d9d9d9; border-radius: 6px; padding: 8px 11px; font-size: 14px; color: rgba(0,0,0,0.88); outline: none; width: 100%; box-sizing: border-box; resize: vertical; font-family: inherit; }
+    .form-textarea:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.2); }
+    .form-textarea:disabled { background: #f5f5f5; color: rgba(0,0,0,0.65); cursor: not-allowed; }
+    .perm-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: #1890ff; }
+    .perm-checkbox:disabled { cursor: not-allowed; }
+    table { border-collapse: collapse; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useRef, useEffect } = React;
+
+    const PERM_GROUPS = [
+      {
+        group: '数据配置',
+        perms: [
+          { key: 'ep:read',      label: '接入点-查看' },
+          { key: 'ep:write',     label: '接入点-编辑' },
+          { key: 'feat:read',    label: '特征-查看' },
+          { key: 'feat:write',   label: '特征-编辑' },
+        ],
+      },
+      {
+        group: '决策配置',
+        perms: [
+          { key: 'policy:read',  label: '策略-查看' },
+          { key: 'policy:write', label: '策略-编辑' },
+          { key: 'rule:read',    label: '规则-查看' },
+          { key: 'rule:write',   label: '规则-编辑' },
+        ],
+      },
+      {
+        group: '风控策略',
+        perms: [
+          { key: 'risk:read',    label: '策略-查看' },
+          { key: 'risk:write',   label: '策略-编辑' },
+        ],
+      },
+      {
+        group: '发布管理',
+        perms: [
+          { key: 'rel:read',     label: '发布-查看' },
+          { key: 'rel:approve',  label: '发布-审批' },
+        ],
+      },
+      {
+        group: '系统管理',
+        perms: [
+          { key: 'user:read',    label: '用户-查看' },
+          { key: 'user:write',   label: '用户-编辑' },
+          { key: 'role:read',    label: '角色-查看' },
+          { key: 'role:write',   label: '角色-编辑' },
+        ],
+      },
+    ];
+
+    const ALL_PERM_KEYS = PERM_GROUPS.flatMap(g => g.perms.map(p => p.key));
+
+    const INIT_ROLES = [
+      {
+        id: 1,
+        displayName: '管理员',
+        name: 'admin',
+        desc: '拥有系统全部权限',
+        perms: ALL_PERM_KEYS,
+        users: 1,
+        builtin: true,
+      },
+      {
+        id: 2,
+        displayName: '发布经理',
+        name: 'release_manager',
+        desc: '可查看所有配置，审批发布单',
+        perms: ['ep:read','feat:read','policy:read','rule:read','risk:read','rel:read','rel:approve','user:read','role:read','role:write'],
+        users: 1,
+        builtin: true,
+      },
+      {
+        id: 3,
+        displayName: '开发者',
+        name: 'developer',
+        desc: '可编辑风控配置，不可审批发布',
+        perms: ['ep:read','ep:write','feat:read','feat:write','policy:read','policy:write','rule:read','rule:write','risk:read','risk:write','rel:read','user:read','role:read'],
+        users: 1,
+        builtin: true,
+      },
+      {
+        id: 4,
+        displayName: '观察者',
+        name: 'viewer',
+        desc: '只读权限，仅可查看',
+        perms: ['ep:read','feat:read','policy:read','rule:read','risk:read','rel:read','user:read','role:read'],
+        users: 1,
+        builtin: true,
+      },
+    ];
+
+    function PermTag({ count }) {
+      return (
+        <span style={{ display:'inline-block', padding:'1px 8px', borderRadius:4, fontSize:12, fontWeight:500, background:'#e6f4ff', color:'#0958d9', border:'1px solid #91caff', whiteSpace:'nowrap' }}>
+          {count} 项权限
+        </span>
+      );
+    }
+
+    function TypeTag({ builtin }) {
+      return builtin
+        ? <span style={{ display:'inline-block', padding:'1px 8px', borderRadius:4, fontSize:12, background:'#f6ffed', color:'#389e0d', border:'1px solid #b7eb8f', whiteSpace:'nowrap' }}>内置</span>
+        : <span style={{ display:'inline-block', padding:'1px 8px', borderRadius:4, fontSize:12, background:'#fff7e6', color:'#d46b08', border:'1px solid #ffd591', whiteSpace:'nowrap' }}>自定义</span>;
+    }
+
+    function ConfirmPopover({ onConfirm, onCancel }) {
+      return (
+        <div className="confirm-popover">
+          <p style={{ margin:'0 0 8px', fontSize:14, color:'rgba(0,0,0,0.88)' }}>确定要删除此角色吗？</p>
+          <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+            <button className="btn-default" style={{ height:28, padding:'0 12px', fontSize:13 }} onClick={onCancel}>取消</button>
+            <button className="btn-primary" style={{ height:28, padding:'0 12px', fontSize:13, background:'#ff4d4f', borderColor:'#ff4d4f' }} onClick={onConfirm}>确定</button>
+          </div>
+        </div>
+      );
+    }
+
+    function ListView({ data, onView, onEdit, onNew, onDelete }) {
+      const [confirmId, setConfirmId] = useState(null);
+      const confirmRef = useRef(null);
+
+      useEffect(() => {
+        function handleClick(e) {
+          if (confirmRef.current && !confirmRef.current.contains(e.target)) setConfirmId(null);
+        }
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+      }, []);
+
+      return (
+        <div style={{ padding:24, maxWidth:1600 }}>
+          {/* 页头 */}
+          <div style={{ marginBottom:20 }}>
+            <h2 style={{ margin:0, fontSize:20, fontWeight:600, color:'rgba(0,0,0,0.88)' }}>角色管理</h2>
+            <p style={{ margin:'4px 0 0', fontSize:14, color:'rgba(0,0,0,0.45)' }}>管理系统角色及其权限配置</p>
+          </div>
+
+          {/* 工具栏 */}
+          <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:16 }}>
+            <button className="btn-primary" onClick={onNew}>+ 新建角色</button>
+          </div>
+
+          {/* 表格 */}
+          <div style={{ background:'#fff', borderRadius:8, border:'1px solid #f0f0f0', overflow:'hidden' }}>
+            <table style={{ width:'100%', tableLayout:'auto' }}>
+              <thead>
+                <tr style={{ background:'#fafafa' }}>
+                  <th style={{ padding:'10px 12px', textAlign:'left', fontSize:13, fontWeight:600, color:'rgba(0,0,0,0.65)', borderBottom:'1px solid #f0f0f0', whiteSpace:'nowrap' }}>角色显示名</th>
+                  <th style={{ padding:'10px 12px', textAlign:'left', fontSize:13, fontWeight:600, color:'rgba(0,0,0,0.65)', borderBottom:'1px solid #f0f0f0', whiteSpace:'nowrap' }}>角色名</th>
+                  <th style={{ padding:'10px 12px', textAlign:'left', fontSize:13, fontWeight:600, color:'rgba(0,0,0,0.65)', borderBottom:'1px solid #f0f0f0' }}>描述</th>
+                  <th style={{ padding:'10px 12px', textAlign:'left', fontSize:13, fontWeight:600, color:'rgba(0,0,0,0.65)', borderBottom:'1px solid #f0f0f0', whiteSpace:'nowrap' }}>权限数量</th>
+                  <th style={{ padding:'10px 12px', textAlign:'left', fontSize:13, fontWeight:600, color:'rgba(0,0,0,0.65)', borderBottom:'1px solid #f0f0f0', whiteSpace:'nowrap' }}>关联用户</th>
+                  <th style={{ padding:'10px 12px', textAlign:'left', fontSize:13, fontWeight:600, color:'rgba(0,0,0,0.65)', borderBottom:'1px solid #f0f0f0', whiteSpace:'nowrap' }}>类型</th>
+                  <th style={{ padding:'10px 12px', textAlign:'center', fontSize:13, fontWeight:600, color:'rgba(0,0,0,0.65)', borderBottom:'1px solid #f0f0f0', width:120 }}>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((row, idx) => (
+                  <tr key={row.id} style={{ background: idx%2===0?'#fff':'#fafafa' }}
+                      onMouseEnter={e => e.currentTarget.style.background='#f5f5f5'}
+                      onMouseLeave={e => e.currentTarget.style.background=idx%2===0?'#fff':'#fafafa'}>
+                    <td style={{ padding:'10px 12px', borderBottom:'1px solid #f0f0f0' }}>
+                      <span style={{ color:'rgba(0,0,0,0.88)', fontWeight:500, fontSize:14 }}>{row.displayName}</span>
+                    </td>
+                    <td style={{ padding:'10px 12px', borderBottom:'1px solid #f0f0f0' }}>
+                      <span style={{ fontFamily:'monospace', fontSize:13, color:'rgba(0,0,0,0.65)', background:'#f5f5f5', padding:'1px 6px', borderRadius:4, border:'1px solid #f0f0f0' }}>{row.name}</span>
+                    </td>
+                    <td style={{ padding:'10px 12px', borderBottom:'1px solid #f0f0f0', fontSize:14, color:'rgba(0,0,0,0.65)', maxWidth:280 }}>
+                      {row.desc}
+                    </td>
+                    <td style={{ padding:'10px 12px', borderBottom:'1px solid #f0f0f0' }}>
+                      <PermTag count={row.perms.length} />
+                    </td>
+                    <td style={{ padding:'10px 12px', borderBottom:'1px solid #f0f0f0', fontSize:14, color:'rgba(0,0,0,0.65)' }}>
+                      {row.users} 人
+                    </td>
+                    <td style={{ padding:'10px 12px', borderBottom:'1px solid #f0f0f0' }}>
+                      <TypeTag builtin={row.builtin} />
+                    </td>
+                    <td style={{ padding:'10px 12px', borderBottom:'1px solid #f0f0f0', textAlign:'center', width:120 }}>
+                      <div style={{ display:'flex', gap:2, justifyContent:'center', alignItems:'center', position:'relative' }}>
+                        <button className="btn-link" onClick={() => onView(row)}>查看</button>
+                        <span style={{ color:'#d9d9d9' }}>|</span>
+                        {row.builtin
+                          ? <button className="btn-link-disabled" disabled title="内置角色不可编辑">编辑</button>
+                          : <button className="btn-link" onClick={() => onEdit(row)}>编辑</button>
+                        }
+                        <span style={{ color:'#d9d9d9' }}>|</span>
+                        {row.builtin
+                          ? <button className="btn-link-disabled" disabled title="内置角色不可删除">删除</button>
+                          : (
+                            <div style={{ position:'relative' }} ref={confirmId === row.id ? confirmRef : null}>
+                              <button className="btn-link-danger" onClick={() => setConfirmId(confirmId === row.id ? null : row.id)}>删除</button>
+                              {confirmId === row.id && (
+                                <ConfirmPopover
+                                  onConfirm={() => { onDelete(row.id); setConfirmId(null); }}
+                                  onCancel={() => setConfirmId(null)}
+                                />
+                              )}
+                            </div>
+                          )
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ marginTop:12, color:'rgba(0,0,0,0.45)', fontSize:13 }}>共 {data.length} 个角色</div>
+        </div>
+      );
+    }
+
+    function PermissionSection({ perms, onChange, readonly }) {
+      return (
+        <div>
+          {PERM_GROUPS.map(group => {
+            const groupKeys = group.perms.map(p => p.key);
+            const checkedCount = groupKeys.filter(k => perms.includes(k)).length;
+            const allChecked = checkedCount === groupKeys.length;
+            const someChecked = checkedCount > 0 && !allChecked;
+
+            function toggleGroup() {
+              if (readonly) return;
+              if (allChecked) {
+                onChange(perms.filter(k => !groupKeys.includes(k)));
+              } else {
+                const newPerms = [...perms];
+                groupKeys.forEach(k => { if (!newPerms.includes(k)) newPerms.push(k); });
+                onChange(newPerms);
+              }
+            }
+
+            function togglePerm(key) {
+              if (readonly) return;
+              if (perms.includes(key)) {
+                onChange(perms.filter(k => k !== key));
+              } else {
+                onChange([...perms, key]);
+              }
+            }
+
+            return (
+              <div key={group.group} style={{ marginBottom:16, border:'1px solid #f0f0f0', borderRadius:6, overflow:'hidden' }}>
+                {/* 分组头 */}
+                <div style={{ background:'#fafafa', padding:'8px 14px', borderBottom:'1px solid #f0f0f0', display:'flex', alignItems:'center', gap:8 }}>
+                  <input
+                    type="checkbox"
+                    className="perm-checkbox"
+                    checked={allChecked}
+                    ref={el => { if (el) el.indeterminate = someChecked; }}
+                    onChange={toggleGroup}
+                    disabled={readonly}
+                  />
+                  <span style={{ fontSize:14, fontWeight:600, color:'rgba(0,0,0,0.88)' }}>{group.group}</span>
+                  <span style={{ fontSize:12, color:'rgba(0,0,0,0.45)', marginLeft:4 }}>{checkedCount}/{groupKeys.length}</span>
+                </div>
+                {/* 权限列表 */}
+                <div style={{ padding:'10px 14px', display:'flex', flexWrap:'wrap', gap:12 }}>
+                  {group.perms.map(p => (
+                    <label key={p.key} style={{ display:'inline-flex', alignItems:'center', gap:6, cursor: readonly ? 'default' : 'pointer', userSelect:'none' }}>
+                      <input
+                        type="checkbox"
+                        className="perm-checkbox"
+                        checked={perms.includes(p.key)}
+                        onChange={() => togglePerm(p.key)}
+                        disabled={readonly}
+                      />
+                      <span style={{ fontSize:14, color: readonly ? 'rgba(0,0,0,0.65)' : 'rgba(0,0,0,0.88)' }}>{p.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    function EditView({ record, isNew, isView, onSave, onCancel }) {
+      const readonly = isView && record.builtin;
+      const [form, setForm] = useState({
+        name: record.name || '',
+        displayName: record.displayName || '',
+        desc: record.desc || '',
+        perms: record.perms ? [...record.perms] : [],
+      });
+
+      function handleSave() {
+        if (!form.name.trim()) { alert('角色名不能为空'); return; }
+        if (!form.displayName.trim()) { alert('显示名不能为空'); return; }
+        onSave({ ...record, ...form });
+      }
+
+      const title = isNew ? '新建角色' : (isView ? '查看角色' : '编辑角色');
+
+      return (
+        <div style={{ padding:24, maxWidth:1600 }}>
+          {/* 面包屑 */}
+          <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:24 }}>
+            <button className="btn-default" style={{ display:'inline-flex', alignItems:'center', gap:4 }} onClick={onCancel}>
+              ← 返回列表
+            </button>
+            <span style={{ color:'rgba(0,0,0,0.45)', fontSize:14 }}>/</span>
+            <span style={{ fontSize:16, fontWeight:600, color:'rgba(0,0,0,0.88)' }}>{title}</span>
+            {record.builtin && (
+              <span style={{ marginLeft:4, padding:'1px 8px', borderRadius:4, fontSize:12, background:'#f6ffed', color:'#389e0d', border:'1px solid #b7eb8f' }}>内置角色</span>
+            )}
+          </div>
+
+          {/* 基本信息 */}
+          <div style={{ background:'#fff', borderRadius:8, border:'1px solid #f0f0f0', padding:28, maxWidth:640, marginBottom:20 }}>
+            <h3 style={{ margin:'0 0 20px', fontSize:15, fontWeight:600, color:'rgba(0,0,0,0.88)' }}>基本信息</h3>
+
+            <div style={{ marginBottom:18 }}>
+              <label style={{ display:'block', fontSize:14, fontWeight:500, color:'rgba(0,0,0,0.88)', marginBottom:6 }}>
+                角色名（英文）{!readonly && <span style={{ color:'#ff4d4f' }}>*</span>}
+              </label>
+              <input
+                className="form-input"
+                placeholder="如: reviewer"
+                value={form.name}
+                disabled={!isNew || readonly}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              />
+              {!isNew && !readonly && <div style={{ marginTop:4, fontSize:12, color:'rgba(0,0,0,0.45)' }}>角色名创建后不可修改</div>}
+            </div>
+
+            <div style={{ marginBottom:18 }}>
+              <label style={{ display:'block', fontSize:14, fontWeight:500, color:'rgba(0,0,0,0.88)', marginBottom:6 }}>
+                显示名{!readonly && <span style={{ color:'#ff4d4f' }}>*</span>}
+              </label>
+              <input
+                className="form-input"
+                placeholder="如: 审核员"
+                value={form.displayName}
+                disabled={readonly}
+                onChange={e => setForm(f => ({ ...f, displayName: e.target.value }))}
+              />
+            </div>
+
+            <div>
+              <label style={{ display:'block', fontSize:14, fontWeight:500, color:'rgba(0,0,0,0.88)', marginBottom:6 }}>描述</label>
+              <textarea
+                className="form-textarea"
+                rows={3}
+                placeholder="角色用途说明"
+                value={form.desc}
+                disabled={readonly}
+                onChange={e => setForm(f => ({ ...f, desc: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          {/* 权限配置 */}
+          <div style={{ background:'#fff', borderRadius:8, border:'1px solid #f0f0f0', padding:28, maxWidth:800, marginBottom:24 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18 }}>
+              <h3 style={{ margin:0, fontSize:15, fontWeight:600, color:'rgba(0,0,0,0.88)' }}>权限配置</h3>
+              <span style={{ fontSize:13, color:'rgba(0,0,0,0.45)' }}>已选 {form.perms.length} / {ALL_PERM_KEYS.length} 项</span>
+            </div>
+            {readonly && (
+              <div style={{ marginBottom:12, padding:'8px 12px', background:'#fffbe6', border:'1px solid #ffe58f', borderRadius:6, fontSize:13, color:'#874d00' }}>
+                内置角色的权限配置只读，不可修改
+              </div>
+            )}
+            <PermissionSection
+              perms={form.perms}
+              onChange={newPerms => setForm(f => ({ ...f, perms: newPerms }))}
+              readonly={readonly}
+            />
+          </div>
+
+          {/* 底部按钮 */}
+          {!readonly && (
+            <div style={{ display:'flex', gap:12 }}>
+              <button className="btn-primary" onClick={handleSave}>保存</button>
+              <button className="btn-default" onClick={onCancel}>取消</button>
+            </div>
+          )}
+          {readonly && (
+            <button className="btn-default" onClick={onCancel}>关闭</button>
+          )}
+        </div>
+      );
+    }
+
+    function App() {
+      const [data, setData] = useState(INIT_ROLES);
+      const [view, setView] = useState('list');
+      const [editing, setEditing] = useState(null);
+      const [isNew, setIsNew] = useState(false);
+      const [isView, setIsView] = useState(false);
+
+      function handleNew() {
+        setEditing({ name:'', displayName:'', desc:'', perms:[], users:0, builtin:false });
+        setIsNew(true);
+        setIsView(false);
+        setView('edit');
+      }
+
+      function handleEdit(row) {
+        setEditing({ ...row });
+        setIsNew(false);
+        setIsView(false);
+        setView('edit');
+      }
+
+      function handleView(row) {
+        setEditing({ ...row });
+        setIsNew(false);
+        setIsView(true);
+        setView('edit');
+      }
+
+      function handleDelete(id) {
+        setData(d => d.filter(r => r.id !== id));
+      }
+
+      function handleSave(rec) {
+        if (rec.id) {
+          setData(d => d.map(r => r.id === rec.id ? rec : r));
+        } else {
+          setData(d => [...d, { ...rec, id: Date.now(), users: 0 }]);
+        }
+        setView('list');
+        setEditing(null);
+      }
+
+      function handleCancel() {
+        setView('list');
+        setEditing(null);
+      }
+
+      if (view === 'edit') {
+        return <EditView record={editing} isNew={isNew} isView={isView} onSave={handleSave} onCancel={handleCancel} />;
+      }
+
+      return <ListView data={data} onView={handleView} onEdit={handleEdit} onNew={handleNew} onDelete={handleDelete} />;
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>

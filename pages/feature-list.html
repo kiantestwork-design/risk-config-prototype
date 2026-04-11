@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>特征管理</title>
+  <script src="../vendor/react.production.min.js"></script>
+  <script src="../vendor/react-dom.production.min.js"></script>
+  <script src="../vendor/babel.min.js"></script>
+  <script src="../tailwind-cdn.js"></script>
+  <link rel="stylesheet" href="../index.css" />
+  <style>
+    body { background: #f0f2f5; color: rgba(0,0,0,0.88); font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; }
+    .confirm-popover { position: absolute; right: 0; top: 100%; z-index: 10; margin-top: 4px; background: white; border-radius: 8px; padding: 12px 16px; white-space: nowrap; box-shadow: 0 6px 16px rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12), 0 9px 28px 8px rgba(0,0,0,0.05); }
+    .btn-primary { height: 32px; border-radius: 6px; padding: 0 15px; background: #1890ff; color: #fff; border: 1px solid #1890ff; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+    .btn-primary:hover { background: #40a9ff; border-color: #40a9ff; }
+    .btn-default { height: 32px; border-radius: 6px; padding: 0 15px; background: #fff; color: rgba(0,0,0,0.88); border: 1px solid #d9d9d9; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+    .btn-default:hover { border-color: #1890ff; color: #1890ff; }
+    .btn-link { background: none; border: none; color: #1890ff; cursor: pointer; padding: 0 4px; font-size: 14px; }
+    .btn-link:hover { color: #40a9ff; }
+    .btn-link-danger { background: none; border: none; color: #ff4d4f; cursor: pointer; padding: 0 4px; font-size: 14px; }
+    .btn-link-danger:hover { color: #ff7875; }
+    .form-input { height: 32px; border: 1px solid #d9d9d9; border-radius: 6px; padding: 0 11px; font-size: 14px; color: rgba(0,0,0,0.88); outline: none; width: 100%; box-sizing: border-box; }
+    .form-input:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.2); }
+    .form-input:disabled { background: #f5f5f5; color: rgba(0,0,0,0.45); cursor: not-allowed; }
+    .form-select { height: 32px; border: 1px solid #d9d9d9; border-radius: 6px; padding: 0 11px; font-size: 14px; color: rgba(0,0,0,0.88); outline: none; background: #fff; cursor: pointer; }
+    .form-select:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.2); }
+    .toggle-wrap { display: inline-flex; align-items: center; gap: 8px; }
+    .toggle { position: relative; width: 44px; height: 22px; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #d9d9d9; border-radius: 11px; transition: 0.3s; }
+    .toggle-slider:before { position: absolute; content: ''; height: 18px; width: 18px; left: 2px; bottom: 2px; background: white; border-radius: 50%; transition: 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+    .toggle input:checked + .toggle-slider { background: #1890ff; }
+    .toggle input:checked + .toggle-slider:before { transform: translateX(22px); }
+    table { border-collapse: collapse; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useRef, useEffect } = React;
+
+    const INIT_DATA = [
+      { id: 1, name: 'user_login_device_history', desc: '用户登录设备历史', action: 'WRITE', entryPoints: 2, status: 'running' },
+      { id: 2, name: 'user_login_ip_history',     desc: '用户登录IP历史',   action: 'WRITE', entryPoints: 2, status: 'running' },
+      { id: 3, name: 'login_pre_snapshot',         desc: '登录前快照',       action: 'WRITE', entryPoints: 1, status: 'running' },
+      { id: 4, name: 'forter_login_result',        desc: 'Forter登录结果缓存', action: 'READ', entryPoints: 1, status: 'running' },
+      { id: 5, name: 'withdraw_history_user_24h',  desc: '用户24h提现历史',  action: 'WRITE', entryPoints: 1, status: 'stopped' },
+      { id: 6, name: 'user_login_count_1h',        desc: '用户1小时登录次数', action: 'READ', entryPoints: 0, status: 'draft' },
+    ];
+
+    const ACTION_COLORS = {
+      READ:   { bg: '#e6f4ff', text: '#0958d9', border: '#91caff' },
+      WRITE:  { bg: '#f6ffed', text: '#389e0d', border: '#b7eb8f' },
+      DELETE: { bg: '#fff1f0', text: '#cf1322', border: '#ffa39e' },
+    };
+
+    const STATUS_MAP = {
+      running: { label: '运行中', dot: '#52c41a', bg: '#f6ffed', text: '#389e0d' },
+      stopped: { label: '已停用', dot: '#d9d9d9', bg: '#fafafa', text: 'rgba(0,0,0,0.45)' },
+      draft:   { label: '未发布', dot: '#faad14', bg: '#fffbe6', text: '#d46b08' },
+    };
+
+    function StatusBadge({ status }) {
+      const s = STATUS_MAP[status] || STATUS_MAP.draft;
+      return (
+        <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 8px', borderRadius:10, background:s.bg, color:s.text, fontSize:12, fontWeight:500 }}>
+          <span style={{ width:6, height:6, borderRadius:'50%', background:s.dot, flexShrink:0 }} />
+          {s.label}
+        </span>
+      );
+    }
+
+    function ActionTag({ action }) {
+      const c = ACTION_COLORS[action] || { bg:'#f0f0f0', text:'#595959', border:'#d9d9d9' };
+      return (
+        <span style={{ display:'inline-block', padding:'1px 8px', borderRadius:4, fontSize:12, fontWeight:600, background:c.bg, color:c.text, border:`1px solid ${c.border}`, whiteSpace:'nowrap', flexShrink:0 }}>
+          {action}
+        </span>
+      );
+    }
+
+    function ConfirmPopover({ onConfirm, onCancel }) {
+      return (
+        <div className="confirm-popover">
+          <p style={{ margin:'0 0 8px', fontSize:14, color:'rgba(0,0,0,0.88)' }}>确定要删除此特征吗？</p>
+          <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+            <button className="btn-default" style={{ height:28, padding:'0 12px', fontSize:13 }} onClick={onCancel}>取消</button>
+            <button className="btn-primary" style={{ height:28, padding:'0 12px', fontSize:13, background:'#ff4d4f', borderColor:'#ff4d4f' }} onClick={onConfirm}>确定</button>
+          </div>
+        </div>
+      );
+    }
+
+    function ListView({ data, searchText, setSearchText, statusFilter, setStatusFilter, onEdit, onNew, onDelete }) {
+      const filtered = data.filter(r => {
+        const matchText = !searchText || r.name.includes(searchText) || r.desc.includes(searchText);
+        const matchStatus = statusFilter === 'all' || r.status === statusFilter;
+        return matchText && matchStatus;
+      });
+
+      const [confirmId, setConfirmId] = useState(null);
+      const confirmRef = useRef(null);
+
+      useEffect(() => {
+        function handleClick(e) {
+          if (confirmRef.current && !confirmRef.current.contains(e.target)) setConfirmId(null);
+        }
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+      }, []);
+
+      return (
+        <div style={{ padding: 24, maxWidth: 1600 }}>
+          {/* 页头 */}
+          <div style={{ marginBottom: 20 }}>
+            <h2 style={{ margin:0, fontSize:20, fontWeight:600, color:'rgba(0,0,0,0.88)' }}>特征管理</h2>
+            <p style={{ margin:'4px 0 0', fontSize:14, color:'rgba(0,0,0,0.45)' }}>管理风控特征定义及其动作类型</p>
+          </div>
+
+          {/* 工具栏 */}
+          <div style={{ display:'flex', gap:12, marginBottom:16, alignItems:'center' }}>
+            <input
+              className="form-input"
+              style={{ width:240 }}
+              placeholder="搜索特征名称或描述"
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+            />
+            <select className="form-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+              <option value="all">全部状态</option>
+              <option value="running">运行中</option>
+              <option value="stopped">已停用</option>
+              <option value="draft">未发布</option>
+            </select>
+            <div style={{ flex:1 }} />
+            <button className="btn-primary" onClick={onNew}>+ 新增特征</button>
+          </div>
+
+          {/* 表格 */}
+          <div style={{ background:'#fff', borderRadius:8, border:'1px solid #f0f0f0', overflow:'hidden' }}>
+            <table style={{ width:'100%', tableLayout:'auto' }}>
+              <thead>
+                <tr style={{ background:'#fafafa' }}>
+                  <th style={{ padding:'10px 12px', textAlign:'left', fontSize:13, fontWeight:600, color:'rgba(0,0,0,0.65)', borderBottom:'1px solid #f0f0f0' }}>特征信息</th>
+                  <th style={{ padding:'10px 12px', textAlign:'left', fontSize:13, fontWeight:600, color:'rgba(0,0,0,0.65)', borderBottom:'1px solid #f0f0f0', whiteSpace:'nowrap' }}>动作类型</th>
+                  <th style={{ padding:'10px 12px', textAlign:'left', fontSize:13, fontWeight:600, color:'rgba(0,0,0,0.65)', borderBottom:'1px solid #f0f0f0', whiteSpace:'nowrap' }}>关联接入点</th>
+                  <th style={{ padding:'10px 12px', textAlign:'left', fontSize:13, fontWeight:600, color:'rgba(0,0,0,0.65)', borderBottom:'1px solid #f0f0f0', whiteSpace:'nowrap', width:90 }}>运行状态</th>
+                  <th style={{ padding:'10px 12px', textAlign:'center', fontSize:13, fontWeight:600, color:'rgba(0,0,0,0.65)', borderBottom:'1px solid #f0f0f0', width:100 }}>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={5} style={{ padding:40, textAlign:'center', color:'rgba(0,0,0,0.45)', fontSize:14 }}>暂无数据</td>
+                  </tr>
+                )}
+                {filtered.map((row, idx) => (
+                  <tr key={row.id} style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa' }}
+                      onMouseEnter={e => e.currentTarget.style.background='#f5f5f5'}
+                      onMouseLeave={e => e.currentTarget.style.background=idx%2===0?'#fff':'#fafafa'}>
+                    <td style={{ padding:'10px 12px', borderBottom:'1px solid #f0f0f0' }}>
+                      <div>
+                        <span style={{ color:'#1890ff', fontWeight:500, fontSize:14, cursor:'pointer' }} onClick={() => onEdit(row)}>{row.name}</span>
+                      </div>
+                      <div style={{ color:'rgba(0,0,0,0.45)', fontSize:12, marginTop:2 }}>{row.desc}</div>
+                    </td>
+                    <td style={{ padding:'10px 12px', borderBottom:'1px solid #f0f0f0' }}>
+                      <ActionTag action={row.action} />
+                    </td>
+                    <td style={{ padding:'10px 12px', borderBottom:'1px solid #f0f0f0', fontSize:14, color:'rgba(0,0,0,0.65)' }}>
+                      {row.entryPoints} 个接入点
+                    </td>
+                    <td style={{ padding:'10px 12px', borderBottom:'1px solid #f0f0f0', width:90 }}>
+                      <StatusBadge status={row.status} />
+                    </td>
+                    <td style={{ padding:'10px 12px', borderBottom:'1px solid #f0f0f0', textAlign:'center', width:100 }}>
+                      <div style={{ display:'flex', gap:4, justifyContent:'center', alignItems:'center', position:'relative' }}>
+                        <button className="btn-link" onClick={() => onEdit(row)}>编辑</button>
+                        <span style={{ color:'#d9d9d9' }}>|</span>
+                        <div style={{ position:'relative' }} ref={confirmId === row.id ? confirmRef : null}>
+                          <button className="btn-link-danger" onClick={() => setConfirmId(confirmId === row.id ? null : row.id)}>删除</button>
+                          {confirmId === row.id && (
+                            <ConfirmPopover
+                              onConfirm={() => { onDelete(row.id); setConfirmId(null); }}
+                              onCancel={() => setConfirmId(null)}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ marginTop:12, color:'rgba(0,0,0,0.45)', fontSize:13 }}>共 {filtered.length} 条记录</div>
+        </div>
+      );
+    }
+
+    function EditView({ record, onSave, onCancel }) {
+      const isNew = !record.id;
+      const [form, setForm] = useState({
+        name: record.name || '',
+        desc: record.desc || '',
+        action: record.action || 'READ',
+        enabled: record.status === 'running',
+      });
+
+      function handleSave() {
+        if (!form.name.trim()) { alert('特征名称不能为空'); return; }
+        onSave({ ...record, name: form.name, desc: form.desc, action: form.action, status: form.enabled ? 'running' : 'stopped' });
+      }
+
+      return (
+        <div style={{ padding: 24, maxWidth: 1600 }}>
+          {/* 页头 */}
+          <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:24 }}>
+            <button className="btn-default" style={{ display:'inline-flex', alignItems:'center', gap:4 }} onClick={onCancel}>
+              ← 返回列表
+            </button>
+            <span style={{ color:'rgba(0,0,0,0.45)', fontSize:14 }}>/</span>
+            <span style={{ fontSize:16, fontWeight:600, color:'rgba(0,0,0,0.88)' }}>{isNew ? '新增特征' : '编辑特征'}</span>
+          </div>
+
+          {/* 表单卡片 */}
+          <div style={{ background:'#fff', borderRadius:8, border:'1px solid #f0f0f0', padding:32, maxWidth:640 }}>
+            <div style={{ marginBottom:20 }}>
+              <label style={{ display:'block', fontSize:14, fontWeight:500, color:'rgba(0,0,0,0.88)', marginBottom:6 }}>
+                特征名称（英文）<span style={{ color:'#ff4d4f' }}>*</span>
+              </label>
+              <input
+                className="form-input"
+                placeholder="如: user_login_count_1h"
+                value={form.name}
+                disabled={!isNew}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              />
+              {!isNew && <div style={{ marginTop:4, fontSize:12, color:'rgba(0,0,0,0.45)' }}>特征名称创建后不可修改</div>}
+            </div>
+
+            <div style={{ marginBottom:20 }}>
+              <label style={{ display:'block', fontSize:14, fontWeight:500, color:'rgba(0,0,0,0.88)', marginBottom:6 }}>中文描述</label>
+              <input
+                className="form-input"
+                placeholder="如: 用户1小时登录次数"
+                value={form.desc}
+                onChange={e => setForm(f => ({ ...f, desc: e.target.value }))}
+              />
+            </div>
+
+            <div style={{ marginBottom:20 }}>
+              <label style={{ display:'block', fontSize:14, fontWeight:500, color:'rgba(0,0,0,0.88)', marginBottom:6 }}>
+                默认动作<span style={{ color:'#ff4d4f' }}>*</span>
+              </label>
+              <select
+                className="form-select"
+                style={{ width:'100%' }}
+                value={form.action}
+                onChange={e => setForm(f => ({ ...f, action: e.target.value }))}
+              >
+                <option value="READ">READ — 读取特征值</option>
+                <option value="WRITE">WRITE — 写入特征值</option>
+                <option value="DELETE">DELETE — 删除特征值</option>
+              </select>
+            </div>
+
+            <div style={{ marginBottom:32 }}>
+              <label style={{ display:'block', fontSize:14, fontWeight:500, color:'rgba(0,0,0,0.88)', marginBottom:8 }}>启用状态</label>
+              <label className="toggle-wrap" style={{ cursor:'pointer' }}>
+                <span className="toggle">
+                  <input type="checkbox" checked={form.enabled} onChange={e => setForm(f => ({ ...f, enabled: e.target.checked }))} />
+                  <span className="toggle-slider" />
+                </span>
+                <span style={{ fontSize:14, color:'rgba(0,0,0,0.65)' }}>{form.enabled ? '已启用' : '已停用'}</span>
+              </label>
+            </div>
+
+            <div style={{ display:'flex', gap:12 }}>
+              <button className="btn-primary" onClick={handleSave}>保存</button>
+              <button className="btn-default" onClick={onCancel}>取消</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [data, setData] = useState(INIT_DATA);
+      const [view, setView] = useState('list'); // 'list' | 'edit'
+      const [editing, setEditing] = useState(null);
+      const [searchText, setSearchText] = useState('');
+      const [statusFilter, setStatusFilter] = useState('all');
+
+      function handleNew() {
+        setEditing({ name:'', desc:'', action:'READ', status:'draft' });
+        setView('edit');
+      }
+
+      function handleEdit(row) {
+        setEditing({ ...row });
+        setView('edit');
+      }
+
+      function handleDelete(id) {
+        setData(d => d.filter(r => r.id !== id));
+      }
+
+      function handleSave(rec) {
+        if (rec.id) {
+          setData(d => d.map(r => r.id === rec.id ? rec : r));
+        } else {
+          setData(d => [...d, { ...rec, id: Date.now(), entryPoints: 0 }]);
+        }
+        setView('list');
+        setEditing(null);
+      }
+
+      function handleCancel() {
+        setView('list');
+        setEditing(null);
+      }
+
+      if (view === 'edit') {
+        return <EditView record={editing} onSave={handleSave} onCancel={handleCancel} />;
+      }
+
+      return (
+        <ListView
+          data={data}
+          searchText={searchText}
+          setSearchText={setSearchText}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          onEdit={handleEdit}
+          onNew={handleNew}
+          onDelete={handleDelete}
+        />
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
