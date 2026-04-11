@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>用户管理 — 风控配置平台</title>
+  <script src="../vendor/react.production.min.js"></script>
+  <script src="../vendor/react-dom.production.min.js"></script>
+  <script src="../vendor/babel.min.js"></script>
+  <script src="../tailwind-cdn.js"></script>
+  <link rel="stylesheet" href="../index.css" />
+  <style>
+    body { background: #f0f2f5; color: rgba(0,0,0,0.88); font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; height: 32px; border-radius: 6px; padding: 0 15px; font-size: 14px; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; white-space: nowrap; }
+    .btn-default { background: #fff; border-color: #d9d9d9; color: rgba(0,0,0,0.88); }
+    .btn-default:hover { border-color: #1890ff; color: #1890ff; }
+    .btn-primary { background: #1890ff; color: #fff; }
+    .btn-primary:hover { background: #40a9ff; }
+    .btn-danger-text { background: transparent; border: none; color: #ff4d4f; padding: 0 6px; height: 22px; cursor: pointer; font-size: 14px; }
+    .btn-danger-text:hover { color: #ff7875; }
+    .btn-link { background: transparent; border: none; color: #1890ff; padding: 0 6px; height: 22px; cursor: pointer; font-size: 14px; }
+    .btn-link:hover { color: #40a9ff; }
+    .btn-disabled { opacity: 0.4; cursor: not-allowed !important; }
+
+    select.filter-select {
+      height: 32px;
+      border: 1px solid #d9d9d9;
+      border-radius: 6px;
+      padding: 0 28px 0 10px;
+      font-size: 14px;
+      color: rgba(0,0,0,0.88);
+      background: #fff;
+      outline: none;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+    }
+    select.filter-select:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.2); }
+
+    input.filter-input {
+      height: 32px;
+      border: 1px solid #d9d9d9;
+      border-radius: 6px;
+      padding: 0 10px;
+      font-size: 14px;
+      color: rgba(0,0,0,0.88);
+      background: #fff;
+      outline: none;
+    }
+    input.filter-input::placeholder { color: rgba(0,0,0,0.25); }
+    input.filter-input:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.2); }
+
+    /* Modal */
+    .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 1000; animation: fadeIn 0.15s ease; }
+    .modal-box { background: #fff; border-radius: 8px; box-shadow: 0 6px 16px rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12), 0 9px 28px 8px rgba(0,0,0,0.05); width: 480px; max-width: 90vw; animation: zoomIn 0.2s ease; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes zoomIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    .modal-header { padding: 16px 24px; border-bottom: 1px solid rgba(5,5,5,0.06); font-size: 16px; font-weight: 600; color: rgba(0,0,0,0.88); }
+    .modal-body { padding: 24px; }
+    .modal-footer { padding: 12px 24px; border-top: 1px solid rgba(5,5,5,0.06); display: flex; justify-content: flex-end; gap: 8px; }
+
+    .form-label { font-size: 14px; color: rgba(0,0,0,0.88); margin-bottom: 6px; display: block; }
+    .form-label .required { color: #ff4d4f; margin-right: 4px; }
+    .form-input { width: 100%; height: 32px; border: 1px solid #d9d9d9; border-radius: 6px; padding: 0 10px; font-size: 14px; color: rgba(0,0,0,0.88); outline: none; box-sizing: border-box; }
+    .form-input:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.2); }
+    .form-select { width: 100%; height: 32px; border: 1px solid #d9d9d9; border-radius: 6px; padding: 0 28px 0 10px; font-size: 14px; color: rgba(0,0,0,0.88); outline: none; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 8px center; appearance: none; -webkit-appearance: none; box-sizing: border-box; }
+    .form-select:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.2); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+
+    const ROLE_MAP = {
+      admin:    { label: '管理员',   color: '#722ed1', bg: '#f9f0ff', border: '#d3adf7' },
+      dev:      { label: '开发者',   color: '#1890ff', bg: '#e6f4ff', border: '#91caff' },
+      release:  { label: '发布经理', color: '#d46b08', bg: '#fff7e6', border: '#ffd591' },
+      observer: { label: '观察者',   color: '#595959', bg: '#f5f5f5', border: '#d9d9d9' },
+    };
+
+    const ROLES_LIST = [
+      { value: 'admin',    label: '管理员' },
+      { value: 'dev',      label: '开发者' },
+      { value: 'release',  label: '发布经理' },
+      { value: 'observer', label: '观察者' },
+    ];
+
+    const initialUsers = [
+      { id: 1, username: 'admin',     displayName: '系统管理员', email: 'admin@example.com',         role: 'admin',    status: 'active',   lastLogin: '2026-04-11 09:30' },
+      { id: 2, username: 'zhang.san', displayName: '张三',       email: 'zhang.san@example.com',     role: 'dev',      status: 'active',   lastLogin: '2026-04-11 14:20' },
+      { id: 3, username: 'li.si',     displayName: '李四',       email: 'li.si@example.com',         role: 'release',  status: 'active',   lastLogin: '2026-04-10 16:45' },
+      { id: 4, username: 'wang.wu',   displayName: '王五',       email: 'wang.wu@example.com',       role: 'observer', status: 'disabled', lastLogin: '2026-03-20 10:00' },
+    ];
+
+    function RoleTag({ role }) {
+      const r = ROLE_MAP[role] || ROLE_MAP.observer;
+      return (
+        <span
+          className="text-xs px-2 py-0.5 rounded whitespace-nowrap"
+          style={{
+            color: r.color,
+            background: r.bg,
+            border: `1px solid ${r.border}`,
+            flexShrink: 0,
+          }}
+        >
+          {r.label}
+        </span>
+      );
+    }
+
+    function StatusBadge({ status }) {
+      if (status === 'active') {
+        return (
+          <span className="inline-flex items-center gap-1 text-xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#52c41a]"></span>
+            <span style={{ color: '#52c41a' }}>启用</span>
+          </span>
+        );
+      }
+      return (
+        <span className="inline-flex items-center gap-1 text-xs">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#ff4d4f]"></span>
+          <span style={{ color: '#ff4d4f' }}>禁用</span>
+        </span>
+      );
+    }
+
+    const EMPTY_FORM = { username: '', displayName: '', email: '', role: 'dev', status: 'active' };
+
+    function UserModal({ mode, user, onClose, onSave }) {
+      const [form, setForm] = useState(user ? {
+        username: user.username,
+        displayName: user.displayName,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+      } : { ...EMPTY_FORM });
+
+      const isEdit = mode === 'edit';
+
+      function handleChange(field, val) {
+        setForm(prev => ({ ...prev, [field]: val }));
+      }
+
+      function handleSubmit() {
+        if (!form.username.trim() || !form.displayName.trim() || !form.email.trim()) {
+          alert('请填写必填项');
+          return;
+        }
+        onSave(form);
+      }
+
+      return (
+        <div className="modal-mask" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+          <div className="modal-box">
+            <div className="modal-header">{isEdit ? '编辑用户' : '新建用户'}</div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label className="form-label"><span className="required">*</span>用户名</label>
+                <input
+                  className="form-input"
+                  placeholder="请输入用户名（登录名）"
+                  value={form.username}
+                  disabled={isEdit}
+                  onChange={e => handleChange('username', e.target.value)}
+                  style={isEdit ? { background: '#f5f5f5', cursor: 'not-allowed' } : {}}
+                />
+              </div>
+              <div>
+                <label className="form-label"><span className="required">*</span>显示名</label>
+                <input
+                  className="form-input"
+                  placeholder="请输入显示名"
+                  value={form.displayName}
+                  onChange={e => handleChange('displayName', e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="form-label"><span className="required">*</span>邮箱</label>
+                <input
+                  className="form-input"
+                  type="email"
+                  placeholder="请输入邮箱地址"
+                  value={form.email}
+                  onChange={e => handleChange('email', e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="form-label"><span className="required">*</span>角色</label>
+                <select className="form-select" value={form.role} onChange={e => handleChange('role', e.target.value)}>
+                  {ROLES_LIST.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="form-label">状态</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
+                  <div
+                    onClick={() => handleChange('status', form.status === 'active' ? 'disabled' : 'active')}
+                    style={{
+                      width: 44,
+                      height: 22,
+                      borderRadius: 11,
+                      background: form.status === 'active' ? '#1890ff' : '#d9d9d9',
+                      position: 'relative',
+                      cursor: 'pointer',
+                      transition: 'background 0.2s',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <div style={{
+                      position: 'absolute',
+                      top: 2,
+                      left: form.status === 'active' ? 24 : 2,
+                      width: 18,
+                      height: 18,
+                      borderRadius: '50%',
+                      background: '#fff',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
+                      transition: 'left 0.2s',
+                    }} />
+                  </div>
+                  <span style={{ fontSize: 14, color: form.status === 'active' ? '#52c41a' : 'rgba(0,0,0,0.45)' }}>
+                    {form.status === 'active' ? '启用' : '禁用'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-default" onClick={onClose}>取消</button>
+              <button className="btn btn-primary" onClick={handleSubmit}>{isEdit ? '保存' : '创建'}</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function DeleteModal({ user, onClose, onConfirm }) {
+      return (
+        <div className="modal-mask" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+          <div className="modal-box" style={{ width: 400 }}>
+            <div className="modal-header">确认删除</div>
+            <div className="modal-body">
+              <p style={{ color: 'rgba(0,0,0,0.65)', fontSize: 14 }}>
+                确定要删除用户 <strong style={{ color: 'rgba(0,0,0,0.88)' }}>{user.displayName}（{user.username}）</strong> 吗？此操作不可恢复。
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-default" onClick={onClose}>取消</button>
+              <button className="btn" style={{ background: '#ff4d4f', color: '#fff', borderColor: '#ff4d4f' }} onClick={onConfirm}>确认删除</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [users, setUsers] = useState(initialUsers);
+      const [searchText, setSearchText] = useState('');
+      const [filterRole, setFilterRole] = useState('');
+      const [filterStatus, setFilterStatus] = useState('');
+      const [query, setQuery] = useState({ text: '', role: '', status: '' });
+      const [modal, setModal] = useState(null); // null | { type: 'create' | 'edit' | 'delete', user? }
+
+      const filteredUsers = useMemo(() => {
+        return users.filter(u => {
+          if (query.text) {
+            const q = query.text.toLowerCase();
+            if (!u.username.toLowerCase().includes(q) && !u.displayName.toLowerCase().includes(q)) return false;
+          }
+          if (query.role && u.role !== query.role) return false;
+          if (query.status && u.status !== query.status) return false;
+          return true;
+        });
+      }, [users, query]);
+
+      function handleSearch() {
+        setQuery({ text: searchText, role: filterRole, status: filterStatus });
+      }
+
+      function handleReset() {
+        setSearchText('');
+        setFilterRole('');
+        setFilterStatus('');
+        setQuery({ text: '', role: '', status: '' });
+      }
+
+      function handleSave(form) {
+        if (modal.type === 'create') {
+          const newUser = {
+            id: Date.now(),
+            username: form.username,
+            displayName: form.displayName,
+            email: form.email,
+            role: form.role,
+            status: form.status,
+            lastLogin: '—',
+          };
+          setUsers(prev => [...prev, newUser]);
+        } else {
+          setUsers(prev => prev.map(u => u.id === modal.user.id ? {
+            ...u,
+            displayName: form.displayName,
+            email: form.email,
+            role: form.role,
+            status: form.status,
+          } : u));
+        }
+        setModal(null);
+      }
+
+      function handleDelete() {
+        setUsers(prev => prev.filter(u => u.id !== modal.user.id));
+        setModal(null);
+      }
+
+      return (
+        <div className="max-w-[1600px] mx-auto p-6">
+          {/* 页头 */}
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-semibold" style={{ color: 'rgba(0,0,0,0.88)' }}>用户管理</h1>
+              <p className="text-sm mt-1" style={{ color: 'rgba(0,0,0,0.45)' }}>管理平台用户账号与权限</p>
+            </div>
+            <button className="btn btn-primary" onClick={() => setModal({ type: 'create' })}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              新建用户
+            </button>
+          </div>
+
+          {/* 搜索栏 */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm px-5 py-4 mb-4 flex flex-wrap items-center gap-3">
+            <input
+              className="filter-input"
+              style={{ width: 200 }}
+              placeholder="搜索用户名 / 显示名"
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSearch()}
+            />
+            <select className="filter-select" value={filterRole} onChange={e => setFilterRole(e.target.value)} style={{ width: 140 }}>
+              <option value="">全部角色</option>
+              {ROLES_LIST.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+            <select className="filter-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ width: 120 }}>
+              <option value="">全部状态</option>
+              <option value="active">启用</option>
+              <option value="disabled">禁用</option>
+            </select>
+            <button className="btn btn-primary" onClick={handleSearch}>查询</button>
+            <button className="btn btn-default" onClick={handleReset}>重置</button>
+          </div>
+
+          {/* 表格 */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full" style={{ tableLayout: 'auto', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#fafafa' }}>
+                    <th className="px-3 py-3 text-left text-sm font-medium border-b border-[#f0f0f0]" style={{ color: 'rgba(0,0,0,0.88)' }}>用户信息</th>
+                    <th className="px-3 py-3 text-left text-sm font-medium border-b border-[#f0f0f0]" style={{ color: 'rgba(0,0,0,0.88)' }}>邮箱</th>
+                    <th className="px-3 py-3 text-left text-sm font-medium border-b border-[#f0f0f0]" style={{ color: 'rgba(0,0,0,0.88)' }}>角色</th>
+                    <th className="px-3 py-3 text-left text-sm font-medium border-b border-[#f0f0f0] w-[90px]" style={{ color: 'rgba(0,0,0,0.88)' }}>状态</th>
+                    <th className="px-3 py-3 text-left text-sm font-medium border-b border-[#f0f0f0]" style={{ color: 'rgba(0,0,0,0.88)' }}>最后登录</th>
+                    <th className="px-3 py-3 text-center text-sm font-medium border-b border-[#f0f0f0] w-[100px]" style={{ color: 'rgba(0,0,0,0.88)' }}>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-3 py-10 text-center text-sm" style={{ color: 'rgba(0,0,0,0.25)' }}>暂无数据</td>
+                    </tr>
+                  ) : filteredUsers.map(user => (
+                    <tr key={user.id} className="hover:bg-[#fafafa] transition-colors">
+                      <td className="px-3 py-3 border-b border-[#f0f0f0]">
+                        <div className="text-sm font-medium" style={{ color: '#1890ff', cursor: 'pointer' }}>{user.username}</div>
+                        <div className="text-xs mt-0.5" style={{ color: 'rgba(0,0,0,0.45)' }}>{user.displayName}</div>
+                      </td>
+                      <td className="px-3 py-3 border-b border-[#f0f0f0] text-sm" style={{ color: 'rgba(0,0,0,0.65)' }}>{user.email}</td>
+                      <td className="px-3 py-3 border-b border-[#f0f0f0]">
+                        <div className="flex flex-wrap gap-1">
+                          <RoleTag role={user.role} />
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 border-b border-[#f0f0f0] w-[90px]">
+                        <StatusBadge status={user.status} />
+                      </td>
+                      <td className="px-3 py-3 border-b border-[#f0f0f0] text-sm" style={{ color: 'rgba(0,0,0,0.45)' }}>{user.lastLogin}</td>
+                      <td className="px-3 py-3 border-b border-[#f0f0f0] w-[100px] text-center">
+                        <button className="btn-link" onClick={() => setModal({ type: 'edit', user })}>编辑</button>
+                        <button
+                          className={`btn-danger-text${user.username === 'admin' ? ' btn-disabled' : ''}`}
+                          disabled={user.username === 'admin'}
+                          onClick={() => user.username !== 'admin' && setModal({ type: 'delete', user })}
+                          title={user.username === 'admin' ? '系统管理员不可删除' : '删除'}
+                        >
+                          删除
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* 底部统计 */}
+            <div className="px-5 py-3 border-t border-[#f0f0f0] flex items-center justify-between">
+              <span className="text-sm" style={{ color: 'rgba(0,0,0,0.45)' }}>共 {filteredUsers.length} 条记录</span>
+            </div>
+          </div>
+
+          {/* 弹框 */}
+          {modal && modal.type !== 'delete' && (
+            <UserModal
+              mode={modal.type}
+              user={modal.user || null}
+              onClose={() => setModal(null)}
+              onSave={handleSave}
+            />
+          )}
+          {modal && modal.type === 'delete' && (
+            <DeleteModal
+              user={modal.user}
+              onClose={() => setModal(null)}
+              onConfirm={handleDelete}
+            />
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>

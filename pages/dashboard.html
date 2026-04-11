@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>监控大盘 — 风控配置平台</title>
+  <script src="../vendor/react.production.min.js"></script>
+  <script src="../vendor/react-dom.production.min.js"></script>
+  <script src="../vendor/babel.min.js"></script>
+  <script src="../tailwind-cdn.js"></script>
+  <link rel="stylesheet" href="../index.css" />
+  <style>
+    body { background: #f0f2f5; color: rgba(0,0,0,0.88); font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    const statCards = [
+      {
+        title: '生效策略数',
+        value: '142',
+        sub: '12 个策略待审批',
+        iconBg: '#e6f4ff',
+        iconColor: '#1890ff',
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:24,height:24}}>
+            <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+        ),
+      },
+      {
+        title: '今日请求量',
+        value: '1,238,456',
+        sub: '较昨日 +12.3%',
+        iconBg: '#f6ffed',
+        iconColor: '#52c41a',
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:24,height:24}}>
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+        ),
+      },
+      {
+        title: '今日拦截数',
+        value: '3,891',
+        sub: '拦截率 0.31%',
+        iconBg: '#fff1f0',
+        iconColor: '#ff4d4f',
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:24,height:24}}>
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+          </svg>
+        ),
+      },
+      {
+        title: '活跃接入点',
+        value: '8',
+        sub: '2 个未发布',
+        iconBg: '#f9f0ff',
+        iconColor: '#722ed1',
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:24,height:24}}>
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+          </svg>
+        ),
+      },
+    ];
+
+    const recentOps = [
+      { user: 'zhang.san', content: '修改策略"登录设备检查"', time: '2026-04-11 14:30' },
+      { user: 'li.si',     content: '发布接入点 EP00000005',  time: '2026-04-11 13:15' },
+      { user: 'wang.wu',   content: '新增规则"大额交易检查"', time: '2026-04-11 11:00' },
+      { user: 'zhang.san', content: '回滚发布单 RO-20260410-001', time: '2026-04-10 16:45' },
+      { user: 'li.si',     content: '禁用策略"异地登录拦截"', time: '2026-04-10 14:20' },
+    ];
+
+    function StatCard({ card }) {
+      return (
+        <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5 flex items-center gap-4">
+          <div
+            className="rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ width: 52, height: 52, background: card.iconBg, color: card.iconColor }}
+          >
+            {card.icon}
+          </div>
+          <div className="min-w-0">
+            <div className="text-sm" style={{ color: 'rgba(0,0,0,0.45)' }}>{card.title}</div>
+            <div className="text-2xl font-semibold mt-0.5" style={{ color: 'rgba(0,0,0,0.88)' }}>{card.value}</div>
+            <div className="text-xs mt-0.5" style={{ color: 'rgba(0,0,0,0.45)' }}>{card.sub}</div>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      return (
+        <div className="max-w-[1600px] mx-auto p-6">
+          {/* 页头 */}
+          <div className="mb-6">
+            <h1 className="text-xl font-semibold" style={{ color: 'rgba(0,0,0,0.88)' }}>监控大盘</h1>
+            <p className="text-sm mt-1" style={{ color: 'rgba(0,0,0,0.45)' }}>实时展示平台核心运行指标</p>
+          </div>
+
+          {/* 统计卡片 */}
+          <div className="grid grid-cols-4 gap-4 mb-6">
+            {statCards.map((card, i) => (
+              <StatCard key={i} card={card} />
+            ))}
+          </div>
+
+          {/* 最近操作表格 */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
+            <div className="px-5 py-4 border-b border-[#f0f0f0]">
+              <h2 className="text-base font-semibold" style={{ color: 'rgba(0,0,0,0.88)' }}>最近操作记录</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full" style={{ tableLayout: 'auto', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#fafafa' }}>
+                    <th className="px-3 py-3 text-left text-sm font-medium border-b border-[#f0f0f0]" style={{ color: 'rgba(0,0,0,0.88)' }}>操作人</th>
+                    <th className="px-3 py-3 text-left text-sm font-medium border-b border-[#f0f0f0]" style={{ color: 'rgba(0,0,0,0.88)' }}>操作内容</th>
+                    <th className="px-3 py-3 text-left text-sm font-medium border-b border-[#f0f0f0]" style={{ color: 'rgba(0,0,0,0.88)' }}>时间</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentOps.map((row, i) => (
+                    <tr key={i} className="hover:bg-[#fafafa] transition-colors">
+                      <td className="px-3 py-3 text-sm border-b border-[#f0f0f0]">
+                        <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: '#f0f2f5', color: 'rgba(0,0,0,0.65)' }}>{row.user}</span>
+                      </td>
+                      <td className="px-3 py-3 text-sm border-b border-[#f0f0f0]" style={{ color: 'rgba(0,0,0,0.65)' }}>{row.content}</td>
+                      <td className="px-3 py-3 text-sm border-b border-[#f0f0f0]" style={{ color: 'rgba(0,0,0,0.45)' }}>{row.time}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
