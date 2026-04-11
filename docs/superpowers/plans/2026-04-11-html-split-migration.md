@@ -2,16 +2,16 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 将编译产物 app.js 拆分为多个可读的静态 HTML 页面。已迁移页面为本地 JSX HTML，可离线运行；未迁移页面通过 legacy-host.html 兼容显示（过渡方案，非终态）。整个目录可打包发给别人，在 Mac/Windows 上离线可运行。
+**Goal:** 将编译产物 app.js 拆分为多个可读的静态 HTML 页面。已迁移页面（接入点管理、标准属性字典）为本地 JSX HTML，可完全离线运行；未迁移页面通过 legacy-host.html 兼容显示，需联网（过渡方案，非终态）。
 
 **Architecture:** `index.html` 作为平台入口（侧边栏菜单 + iframe 内容区）。每个已迁移页面是独立的 HTML 文件（本地 React 18 + Babel standalone），放在 `pages/` 目录下。React/ReactDOM/Babel 等依赖全部离线化到 `vendor/` 目录，不请求任何外网资源。未迁移页面通过 `legacy-host.html` 加载旧 app.js 渲染（过渡方案，app.js 是编译产物，对其改动是脆弱操作，仅做最小必要修改）。
 
 **Tech Stack:** React 18 UMD（本地 vendor/）、Babel standalone（本地 vendor/）、Tailwind CSS（已有本地 tailwind-cdn.js）、纯静态 HTML
 
 **验收标准：**
-- 断网状态下，双击 `index.html`，已迁移页面（接入点管理、标准属性字典）正常打开
-- 压缩整个目录发给别人，解压后双击 `index.html` 即可使用
-- 未迁移页面通过 legacy-host.html 正常显示（需联网加载 app.js 中依赖的 Lucide 图标等资源——这是已知限制）
+- 断网状态下，双击 `index.html`，已迁移页面（接入点管理、标准属性字典）正常打开，不请求任何外网资源
+- 联网状态下，未迁移页面（特征管理、策略等）通过 legacy-host.html 正常显示
+- 压缩整个目录发给别人，解压后双击 `index.html`，已迁移页面离线可用，legacy 页面联网可用
 
 **当前 app.js 页面清单（13 个路由）：**
 
@@ -282,7 +282,9 @@ git commit -m "feat: 接入点列表页（可读JSX，离线可运行）"
 
 - [ ] **Step 3: 断网验证**
 
-断开网络，双击 `pages/entry-point-edit.html?ep=EP00010001`，确认页面正常。
+断开网络验证：
+- 双击 `pages/entry-point-edit.html` 独立打开，确认以默认 Mock EP 正常渲染
+- 通过 `index.html` → 接入点管理 → 点击编辑，确认 iframe 内 `entry-point-edit.html?ep=EP00010001` 正常加载
 
 - [ ] **Step 4: Commit**
 
@@ -323,7 +325,7 @@ git commit -m "feat: 标准属性字典页（可读JSX，离线可运行）"
 
 **Files:**
 - Modify: `legacy-host.html`（从旧 index.html 改造，支持 URL 参数指定页面）
-- Modify: `app.js`（最小改动：读取 URL 参数设置默认页面 + 隐藏侧边栏）
+- Modify: `app.js`（最小改动：读取 URL 参数设置默认页面 + 隐藏侧边栏和顶部栏，只保留内容区）
 
 **注意：对 app.js 的改动是过渡方案，不是终态。app.js 是编译产物，改动脆弱，仅做最小必要修改。随着后续页面逐个迁移为独立 HTML，legacy-host.html 和 app.js 最终会被完全移除。**
 
@@ -351,9 +353,9 @@ git commit -m "feat: 标准属性字典页（可读JSX，离线可运行）"
 // 改为: (0,ln.useState)(window.__LEGACY_PAGE__||"dashboard")
 ```
 
-改动 2：当 `__LEGACY_MODE__` 为 true 时隐藏侧边栏和顶部栏。找到侧边栏容器的 style 或 className，加条件隐藏。
+改动 2：当 `__LEGACY_MODE__` 为 true 时隐藏侧边栏和顶部栏，只保留页面内容区（因为 legacy 页面运行在 index.html 的 iframe 内，外层已经有菜单和顶栏，iframe 内不能重复显示）。找到侧边栏容器和顶部栏容器，分别加 `style={window.__LEGACY_MODE__?{display:"none"}:{}}` 条件隐藏。
 
-具体定位方法：在 app.js 中搜索 `"dashboard"` 找到路由初始化的 useState 调用，搜索 `width:220` 或 `#001529` 找到侧边栏。
+具体定位方法：在 app.js 中搜索 `"dashboard"` 找到路由初始化的 useState 调用，搜索 `width:220` 或 `#001529` 找到侧边栏，搜索 `h-16` 或 `header` 找到顶部栏。
 
 - [ ] **Step 3: 验证 legacy 页面**
 
