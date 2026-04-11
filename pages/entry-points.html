@@ -117,10 +117,10 @@
           if (window.parent && window.parent.openEntryPointDetail) {
             window.parent.openEntryPointDetail(epCode);
           } else {
-            window.location.href = '../ep-detail-demo.html?code=' + encodeURIComponent(epCode);
+            window.location.href = 'entry-point-edit.html?ep=' + encodeURIComponent(epCode);
           }
         } catch(e) {
-          window.location.href = '../ep-detail-demo.html?code=' + encodeURIComponent(epCode);
+          window.location.href = 'entry-point-edit.html?ep=' + encodeURIComponent(epCode);
         }
       }
 
