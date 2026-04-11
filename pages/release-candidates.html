@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>待发布清单</title>
+  <script src="../tailwind-cdn.js"></script>
+  <script src="../vendor/react.production.min.js"></script>
+  <script src="../vendor/react-dom.production.min.js"></script>
+  <script src="../vendor/babel.min.js"></script>
+  <link rel="stylesheet" href="../index.css" />
+  <style>
+    body { background: #f0f2f5; color: rgba(0,0,0,0.88); font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; }
+    .confirm-popover { position: absolute; right: 0; top: 100%; z-index: 10; margin-top: 4px; background: white; border-radius: 8px; padding: 12px 16px; white-space: nowrap; box-shadow: 0 6px 16px rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12), 0 9px 28px 8px rgba(0,0,0,0.05); }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1000; display: flex; align-items: center; justify-content: center; animation: fadeIn 150ms ease; }
+    .modal-box { background: white; border-radius: 8px; width: 480px; box-shadow: 0 6px 16px rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12), 0 9px 28px 8px rgba(0,0,0,0.05); animation: zoomIn 200ms ease; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes zoomIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    .toast { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); background: white; border-radius: 8px; padding: 10px 20px; box-shadow: 0 6px 16px rgba(0,0,0,0.12); display: flex; align-items: center; gap: 8px; z-index: 2000; font-size: 14px; animation: toastIn 200ms ease; }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+    select { height: 32px; border: 1px solid #d9d9d9; border-radius: 6px; padding: 0 28px 0 10px; font-size: 14px; background: white; color: rgba(0,0,0,0.88); outline: none; cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; }
+    select:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.2); }
+    input[type=text] { height: 32px; border: 1px solid #d9d9d9; border-radius: 6px; padding: 0 10px; font-size: 14px; color: rgba(0,0,0,0.88); outline: none; }
+    input[type=text]:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.2); }
+    input[type=checkbox] { width: 14px; height: 14px; cursor: pointer; accent-color: #1890ff; }
+    .btn { height: 32px; border-radius: 6px; padding: 0 15px; font-size: 14px; cursor: pointer; transition: all 0.2s; border: 1px solid #d9d9d9; background: white; color: rgba(0,0,0,0.88); display: inline-flex; align-items: center; gap: 6px; }
+    .btn:hover { border-color: #1890ff; color: #1890ff; }
+    .btn-primary { background: #1890ff; color: white; border-color: #1890ff; }
+    .btn-primary:hover { background: #40a9ff; border-color: #40a9ff; color: white; }
+    .btn-primary:disabled { background: #d9d9d9; border-color: #d9d9d9; color: white; cursor: not-allowed; }
+    .table-row:hover td { background: #fafafa; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>window.onerror=function(m,s,l,c,e){document.getElementById('root').innerHTML='<pre style="color:red;padding:20px;font-size:14px">JS Error:\n'+m+'\nLine: '+l+', Col: '+c+'\n'+(e&&e.stack||'')+'</pre>';}</script>
+  <script type="text/babel">
+    const { useState, useMemo, useEffect, useRef } = React;
+
+    const MOCK_DRAFTS = [
+      { id: 'DFT-001', type: 'EVENT_POINT', name: 'EP00010001 登录风控', summary: '修改属性提取规则', entryPoint: 'EP00010001', editor: 'zhang.san', updatedAt: '2026-04-11' },
+      { id: 'DFT-002', type: 'FEATURE',     name: 'user_login_device_history', summary: '新增设备指纹特征', entryPoint: 'EP00010001', editor: 'li.si',    updatedAt: '2026-04-10' },
+      { id: 'DFT-003', type: 'RULE',        name: 'large_txn_check',           summary: '调整大额交易阈值', entryPoint: 'EP00000005', editor: 'wang.wu', updatedAt: '2026-04-09' },
+      { id: 'DFT-004', type: 'ACTIVATION',  name: 'login_risk_policy',         summary: '新增IP黑名单策略', entryPoint: 'EP00010001', editor: 'zhang.san', updatedAt: '2026-04-08' },
+      { id: 'DFT-005', type: 'EVENT_POINT', name: 'EP00000005 App提现',         summary: '新增提现限额规则', entryPoint: 'EP00000005', editor: 'li.si',    updatedAt: '2026-04-07' },
+    ];
+
+    const TYPE_CONFIG = {
+      EVENT_POINT: { label: '接入点', color: '#e6f7ff', textColor: '#1890ff', borderColor: '#91d5ff' },
+      FEATURE:     { label: '特征',   color: '#f6ffed', textColor: '#52c41a', borderColor: '#b7eb8f' },
+      RULE:        { label: '规则',   color: '#f9f0ff', textColor: '#722ed1', borderColor: '#d3adf7' },
+      ACTIVATION:  { label: '策略',   color: '#fff7e6', textColor: '#d46b08', borderColor: '#ffd591' },
+    };
+
+    const ENTRY_POINT_OPTIONS = [
+      { value: '', label: '全部接入点' },
+      { value: 'EP00010001', label: 'EP00010001 登录风控' },
+      { value: 'EP00000005', label: 'EP00000005 App提现' },
+    ];
+
+    const TYPE_OPTIONS = [
+      { value: '', label: '全部类型' },
+      { value: 'EVENT_POINT', label: '接入点' },
+      { value: 'FEATURE', label: '特征' },
+      { value: 'RULE', label: '规则' },
+      { value: 'ACTIVATION', label: '策略' },
+    ];
+
+    function TypeTag({ type }) {
+      const cfg = TYPE_CONFIG[type] || { label: type, color: '#f5f5f5', textColor: '#666', borderColor: '#d9d9d9' };
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap flex-shrink-0"
+          style={{ background: cfg.color, color: cfg.textColor, border: `1px solid ${cfg.borderColor}` }}>
+          {cfg.label}
+        </span>
+      );
+    }
+
+    function Toast({ message, onClose }) {
+      useEffect(() => {
+        const t = setTimeout(onClose, 3000);
+        return () => clearTimeout(t);
+      }, []);
+      return (
+        <div className="toast">
+          <span style={{ color: '#52c41a', fontSize: 16 }}>✓</span>
+          <span style={{ color: 'rgba(0,0,0,0.88)' }}>{message}</span>
+        </div>
+      );
+    }
+
+    function CreateModal({ selectedIds, onCancel, onConfirm }) {
+      return (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onCancel()}>
+          <div className="modal-box">
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid rgba(5,5,5,0.06)' }}>
+              <span className="font-semibold text-base">创建发布单</span>
+              <button onClick={onCancel} className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors text-lg leading-none">×</button>
+            </div>
+            <div className="px-6 py-5">
+              <div className="flex items-start gap-3">
+                <span style={{ color: '#faad14', fontSize: 22, lineHeight: '24px' }}>⚠</span>
+                <div>
+                  <p className="font-medium mb-1" style={{ color: 'rgba(0,0,0,0.88)' }}>
+                    确认将以下变更打包为发布单？
+                  </p>
+                  <p style={{ color: 'rgba(0,0,0,0.65)', fontSize: 14 }}>
+                    已选择 <strong style={{ color: '#1890ff' }}>{selectedIds.length}</strong> 条变更草稿，创建后将进入审批流程。
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-6 py-3" style={{ borderTop: '1px solid rgba(5,5,5,0.06)', background: 'rgba(5,5,5,0.02)', borderRadius: '0 0 8px 8px' }}>
+              <button className="btn" onClick={onCancel}>取消</button>
+              <button className="btn btn-primary" onClick={onConfirm}>确认创建</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [search, setSearch]       = useState('');
+      const [epFilter, setEpFilter]   = useState('');
+      const [typeFilter, setTypeFilter] = useState('');
+      const [selected, setSelected]   = useState([]);
+      const [showModal, setShowModal] = useState(false);
+      const [toast, setToast]         = useState(null);
+
+      const filtered = useMemo(() => {
+        return MOCK_DRAFTS.filter(d => {
+          if (search && !d.name.includes(search) && !d.summary.includes(search) && !d.id.includes(search)) return false;
+          if (epFilter && d.entryPoint !== epFilter) return false;
+          if (typeFilter && d.type !== typeFilter) return false;
+          return true;
+        });
+      }, [search, epFilter, typeFilter]);
+
+      const allChecked = filtered.length > 0 && filtered.every(d => selected.includes(d.id));
+      const indeterminate = !allChecked && filtered.some(d => selected.includes(d.id));
+
+      function toggleAll() {
+        if (allChecked) {
+          setSelected(s => s.filter(id => !filtered.map(d => d.id).includes(id)));
+        } else {
+          const ids = filtered.map(d => d.id);
+          setSelected(s => [...new Set([...s, ...ids])]);
+        }
+      }
+
+      function toggleOne(id) {
+        setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
+      }
+
+      function handleCreate() {
+        if (selected.length === 0) return;
+        setShowModal(true);
+      }
+
+      function handleConfirm() {
+        setShowModal(false);
+        setToast('发布单已创建，请等待审批');
+        setSelected([]);
+      }
+
+      return (
+        <div className="p-6" style={{ maxWidth: 1600, margin: '0 auto' }}>
+          {/* 页面标题 */}
+          <div className="mb-5">
+            <h1 className="text-xl font-semibold mb-1" style={{ color: 'rgba(0,0,0,0.88)' }}>待发布清单</h1>
+            <p style={{ color: 'rgba(0,0,0,0.45)', fontSize: 14 }}>管理所有待发布的配置变更草稿，选择变更后创建发布单进入审批流程</p>
+          </div>
+
+          {/* 搜索栏 + 操作 */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 mb-4">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+                  <input
+                    type="text"
+                    placeholder="搜索变更名称..."
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    style={{ paddingLeft: 32, width: 220 }}
+                  />
+                </div>
+                <select value={epFilter} onChange={e => setEpFilter(e.target.value)} style={{ width: 180 }}>
+                  {ENTRY_POINT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ width: 130 }}>
+                  {TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <button
+                className="btn btn-primary"
+                onClick={handleCreate}
+                disabled={selected.length === 0}
+                style={selected.length === 0 ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+              >
+                <span>＋</span>
+                创建发布单
+                {selected.length > 0 && <span className="ml-1 bg-white bg-opacity-30 text-white text-xs rounded-full px-1.5 py-0 leading-5">{selected.length}</span>}
+              </button>
+            </div>
+          </div>
+
+          {/* 表格 */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+            {selected.length > 0 && (
+              <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: '#e6f7ff', borderBottom: '1px solid #91d5ff' }}>
+                <span style={{ color: '#1890ff', fontSize: 13 }}>已选择 <strong>{selected.length}</strong> 条变更</span>
+                <button onClick={() => setSelected([])} style={{ color: '#1890ff', fontSize: 12, cursor: 'pointer', background: 'none', border: 'none', padding: 0, marginLeft: 4 }}>清除选择</button>
+              </div>
+            )}
+            <table className="w-full" style={{ tableLayout: 'auto' }}>
+              <thead>
+                <tr style={{ background: '#fafafa', borderBottom: '1px solid #f0f0f0' }}>
+                  <th className="px-3 py-3 text-left" style={{ width: 40, color: 'rgba(0,0,0,0.88)', fontSize: 13, fontWeight: 500 }}>
+                    <input
+                      type="checkbox"
+                      checked={allChecked}
+                      ref={el => { if (el) el.indeterminate = indeterminate; }}
+                      onChange={toggleAll}
+                    />
+                  </th>
+                  <th className="px-3 py-3 text-left" style={{ color: 'rgba(0,0,0,0.88)', fontSize: 13, fontWeight: 500 }}>变更信息</th>
+                  <th className="px-3 py-3 text-left" style={{ width: 160, color: 'rgba(0,0,0,0.88)', fontSize: 13, fontWeight: 500 }}>接入点</th>
+                  <th className="px-3 py-3 text-left" style={{ width: 120, color: 'rgba(0,0,0,0.88)', fontSize: 13, fontWeight: 500 }}>编辑人</th>
+                  <th className="px-3 py-3 text-left" style={{ width: 120, color: 'rgba(0,0,0,0.88)', fontSize: 13, fontWeight: 500 }}>更新时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="text-center py-16" style={{ color: 'rgba(0,0,0,0.25)', fontSize: 14 }}>
+                      <div className="text-4xl mb-3">📋</div>
+                      暂无待发布变更
+                    </td>
+                  </tr>
+                ) : filtered.map((d, i) => (
+                  <tr key={d.id} className="table-row" style={{ borderBottom: i < filtered.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
+                    <td className="px-3 py-3">
+                      <input type="checkbox" checked={selected.includes(d.id)} onChange={() => toggleOne(d.id)} />
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="flex items-start gap-2">
+                        <TypeTag type={d.type} />
+                        <div>
+                          <div className="font-medium text-sm" style={{ color: '#1890ff', cursor: 'pointer' }}>{d.name}</div>
+                          <div className="text-xs mt-0.5" style={{ color: 'rgba(0,0,0,0.45)' }}>{d.summary}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-sm" style={{ color: 'rgba(0,0,0,0.65)' }}>{d.entryPoint}</td>
+                    <td className="px-3 py-3 text-sm" style={{ color: 'rgba(0,0,0,0.65)' }}>{d.editor}</td>
+                    <td className="px-3 py-3 text-sm" style={{ color: 'rgba(0,0,0,0.65)' }}>{d.updatedAt}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid #f0f0f0' }}>
+              <span style={{ color: 'rgba(0,0,0,0.45)', fontSize: 13 }}>共 {filtered.length} 条</span>
+            </div>
+          </div>
+
+          {showModal && (
+            <CreateModal
+              selectedIds={selected}
+              onCancel={() => setShowModal(false)}
+              onConfirm={handleConfirm}
+            />
+          )}
+
+          {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>发布单列表</title>
+  <script src="../tailwind-cdn.js"></script>
+  <script src="../vendor/react.production.min.js"></script>
+  <script src="../vendor/react-dom.production.min.js"></script>
+  <script src="../vendor/babel.min.js"></script>
+  <link rel="stylesheet" href="../index.css" />
+  <style>
+    body { background: #f0f2f5; color: rgba(0,0,0,0.88); font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; }
+    .confirm-popover { position: absolute; right: 0; top: 100%; z-index: 10; margin-top: 4px; background: white; border-radius: 8px; padding: 12px 16px; white-space: nowrap; box-shadow: 0 6px 16px rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12), 0 9px 28px 8px rgba(0,0,0,0.05); }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1000; display: flex; align-items: center; justify-content: center; animation: fadeIn 150ms ease; }
+    .modal-box { background: white; border-radius: 8px; width: 400px; box-shadow: 0 6px 16px rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12), 0 9px 28px 8px rgba(0,0,0,0.05); animation: zoomIn 200ms ease; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes zoomIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    .toast { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); background: white; border-radius: 8px; padding: 10px 20px; box-shadow: 0 6px 16px rgba(0,0,0,0.12); display: flex; align-items: center; gap: 8px; z-index: 2000; font-size: 14px; animation: toastIn 200ms ease; }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+    select { height: 32px; border: 1px solid #d9d9d9; border-radius: 6px; padding: 0 28px 0 10px; font-size: 14px; background: white; color: rgba(0,0,0,0.88); outline: none; cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; }
+    select:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.2); }
+    input[type=text] { height: 32px; border: 1px solid #d9d9d9; border-radius: 6px; padding: 0 10px; font-size: 14px; color: rgba(0,0,0,0.88); outline: none; }
+    input[type=text]:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.2); }
+    .btn { height: 32px; border-radius: 6px; padding: 0 15px; font-size: 14px; cursor: pointer; transition: all 0.2s; border: 1px solid #d9d9d9; background: white; color: rgba(0,0,0,0.88); display: inline-flex; align-items: center; gap: 4px; }
+    .btn:hover { border-color: #1890ff; color: #1890ff; }
+    .btn-primary { background: #1890ff; color: white; border-color: #1890ff; }
+    .btn-primary:hover { background: #40a9ff; border-color: #40a9ff; color: white; }
+    .btn-danger { color: #ff4d4f; border-color: #ff4d4f; }
+    .btn-danger:hover { color: #ff7875; border-color: #ff7875; }
+    .btn-sm { height: 26px; padding: 0 10px; font-size: 12px; }
+    .table-row:hover td { background: #fafafa; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>window.onerror=function(m,s,l,c,e){document.getElementById('root').innerHTML='<pre style="color:red;padding:20px;font-size:14px">JS Error:\n'+m+'\nLine: '+l+', Col: '+c+'\n'+(e&&e.stack||'')+'</pre>';}</script>
+  <script type="text/babel">
+    const { useState, useMemo, useEffect } = React;
+
+    const INIT_ORDERS = [
+      { id: 'RO-20260411-001', desc: '登录风控属性配置更新', changeCount: 3, status: 'PENDING_APPROVAL', creator: 'zhang.san', createdAt: '2026-04-11 15:00' },
+      { id: 'RO-20260410-002', desc: '提现限额规则上线',     changeCount: 2, status: 'APPROVED',         creator: 'li.si',     createdAt: '2026-04-10 14:00' },
+      { id: 'RO-20260410-001', desc: '新增设备指纹特征',     changeCount: 1, status: 'PUBLISHED',        creator: 'wang.wu',   createdAt: '2026-04-10 10:00' },
+      { id: 'RO-20260409-001', desc: '大额交易检查规则',     changeCount: 4, status: 'PUBLISHED',        creator: 'zhang.san', createdAt: '2026-04-09 16:00' },
+      { id: 'RO-20260408-001', desc: 'IP黑名单策略上线',     changeCount: 2, status: 'ROLLED_BACK',      creator: 'li.si',     createdAt: '2026-04-08 11:00' },
+      { id: 'RO-20260407-001', desc: '登录设备历史特征',     changeCount: 1, status: 'REJECTED',         creator: 'wang.wu',   createdAt: '2026-04-07 09:00' },
+    ];
+
+    const STATUS_CONFIG = {
+      PENDING_APPROVAL: { label: '待审批', color: '#fff7e6', textColor: '#d46b08', borderColor: '#ffd591' },
+      APPROVED:         { label: '审批通过', color: '#e6f7ff', textColor: '#1890ff', borderColor: '#91d5ff' },
+      PUBLISHED:        { label: '已发布', color: '#f6ffed', textColor: '#52c41a', borderColor: '#b7eb8f' },
+      ROLLED_BACK:      { label: '已回滚', color: '#fff1f0', textColor: '#cf1322', borderColor: '#ffa39e' },
+      REJECTED:         { label: '已拒绝', color: '#f5f5f5', textColor: 'rgba(0,0,0,0.45)', borderColor: '#d9d9d9' },
+    };
+
+    const STATUS_OPTIONS = [
+      { value: '', label: '全部状态' },
+      { value: 'PENDING_APPROVAL', label: '待审批' },
+      { value: 'APPROVED', label: '审批通过' },
+      { value: 'PUBLISHED', label: '已发布' },
+      { value: 'ROLLED_BACK', label: '已回滚' },
+      { value: 'REJECTED', label: '已拒绝' },
+    ];
+
+    function StatusTag({ status }) {
+      const cfg = STATUS_CONFIG[status] || { label: status, color: '#f5f5f5', textColor: '#666', borderColor: '#d9d9d9' };
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap flex-shrink-0"
+          style={{ background: cfg.color, color: cfg.textColor, border: `1px solid ${cfg.borderColor}` }}>
+          {cfg.label}
+        </span>
+      );
+    }
+
+    function Toast({ message, type, onClose }) {
+      useEffect(() => {
+        const t = setTimeout(onClose, 3000);
+        return () => clearTimeout(t);
+      }, []);
+      const iconColor = type === 'success' ? '#52c41a' : type === 'error' ? '#ff4d4f' : '#1890ff';
+      const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+      return (
+        <div className="toast">
+          <span style={{ color: iconColor, fontSize: 16 }}>{icon}</span>
+          <span style={{ color: 'rgba(0,0,0,0.88)' }}>{message}</span>
+        </div>
+      );
+    }
+
+    function ConfirmModal({ title, content, confirmText, confirmDanger, onCancel, onConfirm }) {
+      return (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onCancel()}>
+          <div className="modal-box">
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid rgba(5,5,5,0.06)' }}>
+              <span className="font-semibold text-base">{title}</span>
+              <button onClick={onCancel} className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors text-lg leading-none">×</button>
+            </div>
+            <div className="px-6 py-5">
+              <div className="flex items-start gap-3">
+                <span style={{ color: confirmDanger ? '#ff4d4f' : '#faad14', fontSize: 22, lineHeight: '24px' }}>
+                  {confirmDanger ? '⚠' : '⚠'}
+                </span>
+                <p style={{ color: 'rgba(0,0,0,0.65)', fontSize: 14, lineHeight: '22px' }}>{content}</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-6 py-3" style={{ borderTop: '1px solid rgba(5,5,5,0.06)', background: 'rgba(5,5,5,0.02)', borderRadius: '0 0 8px 8px' }}>
+              <button className="btn" onClick={onCancel}>取消</button>
+              <button
+                className={confirmDanger ? 'btn btn-danger' : 'btn btn-primary'}
+                style={confirmDanger ? { background: '#ff4d4f', color: 'white', borderColor: '#ff4d4f' } : {}}
+                onClick={onConfirm}
+              >
+                {confirmText}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function ActionButtons({ order, onAction }) {
+      if (order.status === 'PENDING_APPROVAL') {
+        return (
+          <div className="flex items-center justify-center gap-1.5">
+            <button className="btn btn-sm btn-primary" onClick={() => onAction(order.id, 'approve')}>审批通过</button>
+            <button className="btn btn-sm btn-danger" onClick={() => onAction(order.id, 'reject')}>拒绝</button>
+          </div>
+        );
+      }
+      if (order.status === 'APPROVED') {
+        return (
+          <div className="flex items-center justify-center">
+            <button className="btn btn-sm btn-primary" onClick={() => onAction(order.id, 'publish')}>执行发布</button>
+          </div>
+        );
+      }
+      if (order.status === 'PUBLISHED') {
+        return (
+          <div className="flex items-center justify-center">
+            <button className="btn btn-sm btn-danger" onClick={() => onAction(order.id, 'rollback')}>回滚</button>
+          </div>
+        );
+      }
+      return (
+        <div className="flex items-center justify-center">
+          <button className="btn btn-sm" onClick={() => onAction(order.id, 'view')}>查看详情</button>
+        </div>
+      );
+    }
+
+    const ACTION_MODAL_CONFIG = {
+      approve: {
+        title: '审批通过',
+        content: (id) => `确认将发布单 ${id} 标记为审批通过？审批通过后可执行发布操作。`,
+        confirmText: '确认通过',
+        danger: false,
+        nextStatus: 'PUBLISHED',
+        toastMsg: '已审批通过，可执行发布操作',
+        toastType: 'success',
+      },
+      reject: {
+        title: '拒绝发布单',
+        content: (id) => `确认拒绝发布单 ${id}？拒绝后该发布单将无法继续执行。`,
+        confirmText: '确认拒绝',
+        danger: true,
+        nextStatus: 'REJECTED',
+        toastMsg: '发布单已拒绝',
+        toastType: 'error',
+      },
+      publish: {
+        title: '执行发布',
+        content: (id) => `确认将发布单 ${id} 发布到生产环境？此操作将立即生效。`,
+        confirmText: '确认发布',
+        danger: false,
+        nextStatus: 'PUBLISHED',
+        toastMsg: '发布成功，变更已生效',
+        toastType: 'success',
+      },
+      rollback: {
+        title: '执行回滚',
+        content: (id) => `确认回滚发布单 ${id}？回滚将撤销本次所有变更，此操作不可逆。`,
+        confirmText: '确认回滚',
+        danger: true,
+        nextStatus: 'ROLLED_BACK',
+        toastMsg: '回滚完成，变更已撤销',
+        toastType: 'success',
+      },
+    };
+
+    function App() {
+      const [orders, setOrders]         = useState(INIT_ORDERS);
+      const [search, setSearch]         = useState('');
+      const [statusFilter, setStatusFilter] = useState('');
+      const [modal, setModal]           = useState(null); // { orderId, action }
+      const [toast, setToast]           = useState(null);
+
+      const filtered = useMemo(() => {
+        return orders.filter(o => {
+          if (search && !o.id.includes(search) && !o.desc.includes(search)) return false;
+          if (statusFilter && o.status !== statusFilter) return false;
+          return true;
+        });
+      }, [orders, search, statusFilter]);
+
+      function handleAction(orderId, action) {
+        if (action === 'view') {
+          setToast({ message: `查看发布单 ${orderId} 详情（功能开发中）`, type: 'info' });
+          return;
+        }
+        setModal({ orderId, action });
+      }
+
+      function handleConfirm() {
+        const cfg = ACTION_MODAL_CONFIG[modal.action];
+        if (!cfg) return;
+        setOrders(prev => prev.map(o => o.id === modal.orderId ? { ...o, status: cfg.nextStatus } : o));
+        setModal(null);
+        setToast({ message: cfg.toastMsg, type: cfg.toastType });
+      }
+
+      const modalCfg = modal ? ACTION_MODAL_CONFIG[modal.action] : null;
+
+      return (
+        <div className="p-6" style={{ maxWidth: 1600, margin: '0 auto' }}>
+          {/* 页面标题 */}
+          <div className="mb-5">
+            <h1 className="text-xl font-semibold mb-1" style={{ color: 'rgba(0,0,0,0.88)' }}>发布单列表</h1>
+            <p style={{ color: 'rgba(0,0,0,0.45)', fontSize: 14 }}>管理所有配置变更的发布单，跟踪审批与发布状态</p>
+          </div>
+
+          {/* 搜索栏 */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 mb-4">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+                <input
+                  type="text"
+                  placeholder="搜索发布单号或描述..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  style={{ paddingLeft: 32, width: 240 }}
+                />
+              </div>
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ width: 150 }}>
+                {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* 表格 */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+            <table className="w-full" style={{ tableLayout: 'auto' }}>
+              <thead>
+                <tr style={{ background: '#fafafa', borderBottom: '1px solid #f0f0f0' }}>
+                  <th className="px-3 py-3 text-left" style={{ color: 'rgba(0,0,0,0.88)', fontSize: 13, fontWeight: 500 }}>发布单信息</th>
+                  <th className="px-3 py-3 text-left" style={{ width: 90, color: 'rgba(0,0,0,0.88)', fontSize: 13, fontWeight: 500 }}>变更数量</th>
+                  <th className="px-3 py-3 text-left" style={{ width: 110, color: 'rgba(0,0,0,0.88)', fontSize: 13, fontWeight: 500 }}>状态</th>
+                  <th className="px-3 py-3 text-left" style={{ width: 110, color: 'rgba(0,0,0,0.88)', fontSize: 13, fontWeight: 500 }}>创建人</th>
+                  <th className="px-3 py-3 text-left" style={{ width: 150, color: 'rgba(0,0,0,0.88)', fontSize: 13, fontWeight: 500 }}>创建时间</th>
+                  <th className="px-3 py-3 text-center" style={{ width: 160, color: 'rgba(0,0,0,0.88)', fontSize: 13, fontWeight: 500 }}>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-16" style={{ color: 'rgba(0,0,0,0.25)', fontSize: 14 }}>
+                      <div className="text-4xl mb-3">📄</div>
+                      暂无发布单
+                    </td>
+                  </tr>
+                ) : filtered.map((o, i) => (
+                  <tr key={o.id} className="table-row" style={{ borderBottom: i < filtered.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
+                    <td className="px-3 py-3">
+                      <div className="font-medium text-sm" style={{ color: '#1890ff', cursor: 'pointer' }}>{o.id}</div>
+                      <div className="text-xs mt-0.5" style={{ color: 'rgba(0,0,0,0.45)' }}>{o.desc}</div>
+                    </td>
+                    <td className="px-3 py-3 text-sm" style={{ color: 'rgba(0,0,0,0.65)' }}>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="font-medium" style={{ color: 'rgba(0,0,0,0.88)' }}>{o.changeCount}</span>
+                        <span>项变更</span>
+                      </span>
+                    </td>
+                    <td className="px-3 py-3"><StatusTag status={o.status} /></td>
+                    <td className="px-3 py-3 text-sm" style={{ color: 'rgba(0,0,0,0.65)' }}>{o.creator}</td>
+                    <td className="px-3 py-3 text-sm" style={{ color: 'rgba(0,0,0,0.65)' }}>{o.createdAt}</td>
+                    <td className="px-3 py-3">
+                      <ActionButtons order={o} onAction={handleAction} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid #f0f0f0' }}>
+              <span style={{ color: 'rgba(0,0,0,0.45)', fontSize: 13 }}>共 {filtered.length} 条</span>
+            </div>
+          </div>
+
+          {modal && modalCfg && (
+            <ConfirmModal
+              title={modalCfg.title}
+              content={modalCfg.content(modal.orderId)}
+              confirmText={modalCfg.confirmText}
+              confirmDanger={modalCfg.danger}
+              onCancel={() => setModal(null)}
+              onConfirm={handleConfirm}
+            />
+          )}
+
+          {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
