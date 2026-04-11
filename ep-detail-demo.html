@@ -1175,6 +1175,197 @@
     }
 
     /* ================================================================
+     *  Tab 3: ChangesetDetail 变更集详情页
+     * ================================================================ */
+    function ChangesetDetail({ changeset, setChangeset, extractions, payload }) {
+      const extractionChanges = changeset.changes.filter(c => c.type.startsWith('EXTRACTION_'));
+      const featureChanges = changeset.changes.filter(c => c.type.startsWith('FEATURE_'));
+
+      const addCount = (arr) => arr.filter(c => c.type.endsWith('_ADD')).length;
+      const modifyCount = (arr) => arr.filter(c => c.type.endsWith('_MODIFY')).length;
+      const deleteCount = (arr) => arr.filter(c => c.type.endsWith('_DELETE')).length;
+
+      const typePrefix = (type) => {
+        if (type.endsWith('_ADD')) return { label: '+', color: '#52c41a', bg: '#f6ffed' };
+        if (type.endsWith('_MODIFY')) return { label: '~', color: '#1890ff', bg: '#e6f7ff' };
+        if (type.endsWith('_DELETE')) return { label: '-', color: '#ff4d4f', bg: '#fff2f0' };
+        return { label: '?', color: '#999', bg: '#fafafa' };
+      };
+
+      const handleDryRun = () => {
+        const getValueByPath = (obj, path) => path.split('.').reduce((o, k) => (o && o[k] !== undefined) ? o[k] : undefined, obj);
+        const results = extractions.filter(e => e.status === 1).map(ext => {
+          const rawValue = getValueByPath(payload, ext.fieldName);
+          const steps = runPipeline(rawValue, ext.transformers);
+          return { propertyName: ext.propertyName, hasError: steps.some(s => s.error) };
+        });
+        const allPassed = results.every(r => !r.hasError);
+        setChangeset(prev => ({
+          ...prev,
+          status: allPassed ? 'TESTED' : 'DRAFT',
+          testResult: {
+            passed: allPassed,
+            timestamp: new Date().toISOString(),
+            details: results,
+          },
+        }));
+      };
+
+      const handleSubmit = () => {
+        setChangeset(prev => ({ ...prev, status: 'READY' }));
+      };
+
+      const handleRollback = () => {
+        setChangeset(prev => ({ ...prev, status: 'DRAFT', changes: [], testResult: null }));
+      };
+
+      const changeLabel = (c) => {
+        if (c.type.startsWith('EXTRACTION_')) {
+          const ext = extractions.find(e => e.id === c.targetId);
+          return ext ? `${ext.propertyName} (${ext.propertyDesc})` : c.targetId;
+        }
+        return c.payload ? (c.payload.featureId || c.targetId) : c.targetId;
+      };
+
+      return (
+        <div className="space-y-4">
+          {/* 变更摘要 */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
+            <h3 className="text-sm font-medium text-[rgba(0,0,0,0.88)] mb-3">变更摘要</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-[#fafafa] rounded-lg p-3 border border-[#f0f0f0]">
+                <div className="text-xs text-[rgba(0,0,0,0.45)] mb-1">属性提取</div>
+                <div className="flex items-center gap-3 text-sm">
+                  {addCount(extractionChanges) > 0 && <span className="text-[#52c41a]">+{addCount(extractionChanges)} 新增</span>}
+                  {modifyCount(extractionChanges) > 0 && <span className="text-[#1890ff]">~{modifyCount(extractionChanges)} 修改</span>}
+                  {deleteCount(extractionChanges) > 0 && <span className="text-[#ff4d4f]">-{deleteCount(extractionChanges)} 删除</span>}
+                  {extractionChanges.length === 0 && <span className="text-[rgba(0,0,0,0.25)]">无变更</span>}
+                </div>
+              </div>
+              <div className="bg-[#fafafa] rounded-lg p-3 border border-[#f0f0f0]">
+                <div className="text-xs text-[rgba(0,0,0,0.45)] mb-1">场景特征</div>
+                <div className="flex items-center gap-3 text-sm">
+                  {addCount(featureChanges) > 0 && <span className="text-[#52c41a]">+{addCount(featureChanges)} 新增</span>}
+                  {modifyCount(featureChanges) > 0 && <span className="text-[#1890ff]">~{modifyCount(featureChanges)} 修改</span>}
+                  {deleteCount(featureChanges) > 0 && <span className="text-[#ff4d4f]">-{deleteCount(featureChanges)} 删除</span>}
+                  {featureChanges.length === 0 && <span className="text-[rgba(0,0,0,0.25)]">无变更</span>}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 变更明细 */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-[#f0f0f0]">
+              <h3 className="text-sm font-medium text-[rgba(0,0,0,0.88)]">变更明细</h3>
+            </div>
+            {extractionChanges.length > 0 && (
+              <div className="border-b border-[#f0f0f0]">
+                <div className="px-4 py-2 bg-[#fafafa] text-xs font-medium text-[rgba(0,0,0,0.65)]">
+                  属性提取变更 ({extractionChanges.length})
+                </div>
+                {extractionChanges.map((c, i) => {
+                  const tp = typePrefix(c.type);
+                  return (
+                    <div key={i} className="px-4 py-3 border-b border-[#f0f0f0] last:border-0 flex items-start gap-3">
+                      <span className="inline-flex items-center justify-center w-5 h-5 rounded text-xs font-bold flex-shrink-0" style={{ color: tp.color, background: tp.bg, border: `1px solid ${tp.color}30` }}>{tp.label}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-[rgba(0,0,0,0.88)]">{c.type.endsWith('_ADD') ? '新增' : c.type.endsWith('_MODIFY') ? '修改' : '删除'} — {changeLabel(c)}</div>
+                        {c.payload && (
+                          <div className="mt-1 text-xs text-[rgba(0,0,0,0.45)] space-y-0.5">
+                            {c.payload.fieldName && <div>路径: <code className="font-mono bg-[#f5f5f5] px-1 rounded">{c.payload.fieldName}</code></div>}
+                            {c.payload.transformers && c.payload.transformers.length > 0 && (
+                              <div className="flex items-center gap-1">
+                                转换: <TransformerTags transformers={c.payload.transformers} />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {featureChanges.length > 0 && (
+              <div>
+                <div className="px-4 py-2 bg-[#fafafa] text-xs font-medium text-[rgba(0,0,0,0.65)]">
+                  场景特征变更 ({featureChanges.length})
+                </div>
+                {featureChanges.map((c, i) => {
+                  const tp = typePrefix(c.type);
+                  return (
+                    <div key={i} className="px-4 py-3 border-b border-[#f0f0f0] last:border-0 flex items-start gap-3">
+                      <span className="inline-flex items-center justify-center w-5 h-5 rounded text-xs font-bold flex-shrink-0" style={{ color: tp.color, background: tp.bg, border: `1px solid ${tp.color}30` }}>{tp.label}</span>
+                      <div className="text-sm text-[rgba(0,0,0,0.88)]">{c.type.endsWith('_ADD') ? '新增' : c.type.endsWith('_MODIFY') ? '修改' : '删除'} — {changeLabel(c)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {changeset.changes.length === 0 && (
+              <div className="px-4 py-8 text-center text-sm text-[rgba(0,0,0,0.25)]">暂无变更</div>
+            )}
+          </div>
+
+          {/* 模拟测试 */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
+            <h3 className="text-sm font-medium text-[rgba(0,0,0,0.88)] mb-3">模拟测试 (Dry Run)</h3>
+            {changeset.testResult ? (
+              <div className={`rounded-lg p-3 border ${changeset.testResult.passed ? 'border-[#b7eb8f] bg-[#f6ffed]' : 'border-[#ffccc7] bg-[#fff2f0]'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`text-sm font-medium ${changeset.testResult.passed ? 'text-[#52c41a]' : 'text-[#ff4d4f]'}`}>
+                    {changeset.testResult.passed ? '✅ 全部通过' : '❌ 存在失败'}
+                  </span>
+                  <span className="text-xs text-[rgba(0,0,0,0.45)]">{new Date(changeset.testResult.timestamp).toLocaleString()}</span>
+                </div>
+                {changeset.testResult.details && (
+                  <div className="space-y-1">
+                    {changeset.testResult.details.map((r, i) => (
+                      <div key={i} className="text-xs flex items-center gap-2">
+                        <span>{r.hasError ? '❌' : '✅'}</span>
+                        <span className="font-mono">{r.propertyName}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-sm text-[rgba(0,0,0,0.45)]">未测试</div>
+            )}
+          </div>
+
+          {/* 操作栏 */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm px-4 py-3 flex items-center justify-end gap-2">
+            {changeset.status === 'DRAFT' && (
+              <button className="h-8 px-4 text-sm rounded-md bg-[#1890ff] text-white border-none hover:bg-[#40a9ff] transition-colors" onClick={handleDryRun}>
+                运行测试
+              </button>
+            )}
+            {changeset.status === 'TESTED' && (
+              <>
+                <button className="h-8 px-4 text-sm rounded-md border border-[#d9d9d9] bg-white text-[rgba(0,0,0,0.65)] hover:border-[#1890ff] hover:text-[#1890ff] transition-colors" onClick={handleDryRun}>
+                  重新测试
+                </button>
+                <button className="h-8 px-4 text-sm rounded-md bg-[#52c41a] text-white border-none hover:bg-[#73d13d] transition-colors" onClick={handleSubmit}>
+                  提交发布
+                </button>
+              </>
+            )}
+            {changeset.status === 'READY' && (
+              <span className="text-sm text-[rgba(0,0,0,0.45)]">等待审批中...</span>
+            )}
+            {(changeset.status === 'PUBLISHED' || changeset.status === 'READY') && (
+              <button className="h-8 px-4 text-sm rounded-md border border-[#ff4d4f] text-[#ff4d4f] bg-white hover:bg-[#fff2f0] transition-colors" onClick={handleRollback}>
+                回滚
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    /* ================================================================
      *  App 根组件
      * ================================================================ */
     function App() {
@@ -1397,6 +1588,16 @@
                   />
                 ))}
               </div>
+            </div>
+
+            {/* Tab 3: 变更集详情 */}
+            <div style={{ display: activeTab === 'changeset' ? 'block' : 'none' }}>
+              <ChangesetDetail
+                changeset={changeset}
+                setChangeset={setChangeset}
+                extractions={extractions}
+                payload={currentPayload}
+              />
             </div>
           </div>
         </div>
