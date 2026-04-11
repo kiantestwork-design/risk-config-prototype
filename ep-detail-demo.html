@@ -93,6 +93,11 @@
       return typeof val;
     }
 
+    // 按点分路径从对象中取值
+    function getValueByPath(obj, path) {
+      return path.split('.').reduce((o, k) => (o && o[k] !== undefined) ? o[k] : undefined, obj);
+    }
+
     // 单步转换，返回 { value, type, error }
     function applyTransformer(val, operator, params) {
       try {
@@ -101,7 +106,8 @@
             const n = Number(val);
             if (isNaN(n)) return { value: val, type: getTypeLabel(val), error: '无法转为数字' };
             const divisor = Number(params.divisor);
-            if (!divisor) return { value: val, type: getTypeLabel(val), error: '除数不能为0' };
+            if (isNaN(divisor)) return { value: val, type: getTypeLabel(val), error: '除数必须为数字' };
+            if (divisor === 0) return { value: val, type: getTypeLabel(val), error: '除数不能为0' };
             const result = n / divisor;
             return { value: result, type: getTypeLabel(result), error: null };
           }
@@ -126,7 +132,7 @@
           case 'TO_DOUBLE': {
             const n = Number(val);
             if (isNaN(n)) return { value: val, type: getTypeLabel(val), error: '无法转为数字' };
-            const result = parseFloat(n);
+            const result = n;
             return { value: result, type: 'Double', error: null };
           }
           case 'TO_STR': {
@@ -152,6 +158,7 @@
           case 'CUSTOM': {
             const expr = params.expression || 'val';
             try {
+              // TODO: 生产环境需替换为安全表达式引擎（如 expr-eval），new Function 等同于 eval
               const fn = new Function('val', `return (${expr});`);
               const result = fn(val);
               return { value: result, type: getTypeLabel(result), error: null };
@@ -430,10 +437,6 @@
       );
       const [nextKey, setNextKey] = useState(extraction.transformers ? extraction.transformers.length : 0);
 
-      const getValueByPath = (obj, path) => {
-        return path.split('.').reduce((o, k) => (o && o[k] !== undefined) ? o[k] : undefined, obj);
-      };
-
       const rawValue = getValueByPath(payload, fieldName);
       const pipelineSteps = runPipeline(rawValue, transformers);
       const finalStep = pipelineSteps[pipelineSteps.length - 1];
@@ -627,10 +630,6 @@
      * ================================================================ */
     function DataFlowVisualization({ extractions, payload }) {
       const [expanded, setExpanded] = useState(false);
-
-      const getValueByPath = (obj, path) => {
-        return path.split('.').reduce((o, k) => (o && o[k] !== undefined) ? o[k] : undefined, obj);
-      };
 
       const enabledExtractions = extractions.filter(e => e.status === 1);
 
@@ -1196,7 +1195,6 @@
       };
 
       const handleDryRun = () => {
-        const getValueByPath = (obj, path) => path.split('.').reduce((o, k) => (o && o[k] !== undefined) ? o[k] : undefined, obj);
         const results = extractions.filter(e => e.status === 1).map(ext => {
           const rawValue = getValueByPath(payload, ext.fieldName);
           const steps = runPipeline(rawValue, ext.transformers);
