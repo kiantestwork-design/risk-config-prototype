@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>服务熔断策略</title>
+  <script src="../tailwind-cdn.js"></script>
+  <script src="../vendor/react.production.min.js"></script>
+  <script src="../vendor/react-dom.production.min.js"></script>
+  <script src="../vendor/babel.min.js"></script>
+  <link rel="stylesheet" href="../index.css" />
+  <style>
+    body { background: #f0f2f5; color: rgba(0,0,0,0.88); font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1000; display: flex; align-items: center; justify-content: center; animation: fadeIn 150ms ease; }
+    .modal-box { background: white; border-radius: 8px; box-shadow: 0 6px 16px rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12), 0 9px 28px 8px rgba(0,0,0,0.05); width: 520px; max-width: 90vw; animation: zoomIn 200ms ease; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes zoomIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    .form-label { display: block; font-size: 13px; color: rgba(0,0,0,0.88); margin-bottom: 6px; font-weight: 500; }
+    .form-input { width: 100%; height: 32px; padding: 0 11px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; outline: none; transition: border-color 0.2s; box-sizing: border-box; background: white; color: rgba(0,0,0,0.88); }
+    .form-input:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.2); }
+    .form-select { width: 100%; height: 32px; padding: 0 28px 0 11px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; outline: none; transition: border-color 0.2s; box-sizing: border-box; background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(0,0,0,0.25)' stroke-width='2'%3E%3Cpath d='M19 9l-7 7-7-7'/%3E%3C/svg%3E") no-repeat right 8px center; appearance: none; color: rgba(0,0,0,0.88); }
+    .form-select:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.2); }
+    .toggle-switch { position: relative; width: 36px; height: 20px; display: inline-block; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; border-radius: 20px; cursor: pointer; transition: background 0.2s; }
+    .toggle-slider:before { content: ''; position: absolute; width: 16px; height: 16px; left: 2px; top: 2px; border-radius: 50%; background: white; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+    input:checked + .toggle-slider { background: #1890ff; }
+    input:not(:checked) + .toggle-slider { background: rgba(0,0,0,0.25); }
+    input:checked + .toggle-slider:before { transform: translateX(16px); }
+    .confirm-popover { position: absolute; right: 0; top: 100%; z-index: 10; margin-top: 4px; background: white; border-radius: 8px; padding: 12px 16px; white-space: nowrap; box-shadow: 0 6px 16px rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12), 0 9px 28px 8px rgba(0,0,0,0.05); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>window.onerror=function(m,s,l,c,e){document.getElementById('root').innerHTML='<pre style="color:red;padding:20px;font-size:14px">JS Error:\n'+m+'\nLine: '+l+', Col: '+c+'\n'+(e&&e.stack||'')+'</pre>';}</script>
+  <script type="text/babel">
+    const { useState, useRef, useEffect } = React;
+
+    const METRICS = ['错误率', '响应时间', '失败次数', '超时率'];
+
+    const INIT_DATA = [
+      { id: 1, name: 'forter_api_breaker',      label: 'Forter API 熔断',   metric: '错误率',   threshold: '>50%',      duration: 30,  fallback: 'default_score', enabled: true  },
+      { id: 2, name: 'redis_cache_breaker',      label: 'Redis 缓存熔断',    metric: '响应时间', threshold: '>500ms',    duration: 60,  fallback: 'local_cache',   enabled: true  },
+      { id: 3, name: 'kafka_producer_breaker',   label: 'Kafka 生产者熔断',  metric: '失败次数', threshold: '>100次/分', duration: 120, fallback: 'discard',       enabled: false },
+      { id: 4, name: 'db_query_breaker',         label: '数据库查询熔断',    metric: '超时率',   threshold: '>30%',      duration: 45,  fallback: 'cached_result', enabled: true  },
+    ];
+
+    const EMPTY_FORM = { name: '', label: '', metric: '错误率', threshold: '', duration: null, fallback: '' };
+
+    function Modal({ title, onClose, onSave, form, setForm }) {
+      function handleSave() {
+        if (!form.name.trim() || !form.label.trim() || !form.threshold.trim()) {
+          alert('请填写必填项：名称、描述、阈值');
+          return;
+        }
+        onSave();
+      }
+      return (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+          <div className="modal-box">
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid rgba(5,5,5,0.06)' }}>
+              <span className="text-base font-semibold text-[rgba(0,0,0,0.88)]">{title}</span>
+              <button className="w-8 h-8 flex items-center justify-center rounded hover:bg-[rgba(0,0,0,0.06)] text-[rgba(0,0,0,0.45)] hover:text-[rgba(0,0,0,0.88)] transition-colors text-lg leading-none" onClick={onClose}>×</button>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="form-label">策略名称 <span className="text-[#ff4d4f]">*</span></label>
+                  <input className="form-input" placeholder="如 forter_api_breaker" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="form-label">描述 <span className="text-[#ff4d4f]">*</span></label>
+                  <input className="form-input" placeholder="策略描述" value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="form-label">监控指标</label>
+                  <select className="form-select" value={form.metric} onChange={e => setForm(f => ({ ...f, metric: e.target.value }))}>
+                    {METRICS.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">触发阈值 <span className="text-[#ff4d4f]">*</span></label>
+                  <input className="form-input" placeholder="如 >50% 或 >500ms" value={form.threshold} onChange={e => setForm(f => ({ ...f, threshold: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="form-label">熔断时长（秒）</label>
+                  <input className="form-input" type="number" min="1" placeholder="如 30" value={form.duration === null ? '' : form.duration} onChange={e => setForm(f => ({ ...f, duration: e.target.value === '' ? null : parseInt(e.target.value) }))} />
+                </div>
+                <div>
+                  <label className="form-label">Fallback 值</label>
+                  <input className="form-input" placeholder="熔断后的降级返回值" value={form.fallback} onChange={e => setForm(f => ({ ...f, fallback: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-6 py-3" style={{ borderTop: '1px solid rgba(5,5,5,0.06)', background: 'rgba(5,5,5,0.02)', borderRadius: '0 0 8px 8px' }}>
+              <button className="h-8 px-4 rounded-md text-sm border border-[#d9d9d9] bg-white text-[rgba(0,0,0,0.88)] hover:border-[#1890ff] hover:text-[#1890ff] transition-colors" onClick={onClose}>取消</button>
+              <button className="h-8 px-4 rounded-md text-sm text-white transition-colors" style={{ background: '#1890ff' }}
+                onMouseEnter={e => e.currentTarget.style.background='#40a9ff'}
+                onMouseLeave={e => e.currentTarget.style.background='#1890ff'}
+                onClick={handleSave}>保存</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [data, setData] = useState(INIT_DATA);
+      const [search, setSearch] = useState('');
+      const [modal, setModal] = useState(null); // null | { mode: 'add'|'edit', id? }
+      const [form, setForm] = useState(EMPTY_FORM);
+      const [deleteTarget, setDeleteTarget] = useState(null);
+      const nextId = useRef(100);
+
+      const filtered = data.filter(row =>
+        !search || row.name.toLowerCase().includes(search.toLowerCase()) || row.label.includes(search)
+      );
+
+      function openAdd() {
+        setForm({ ...EMPTY_FORM });
+        setModal({ mode: 'add' });
+      }
+
+      function openEdit(row) {
+        setForm({ name: row.name, label: row.label, metric: row.metric, threshold: row.threshold, duration: row.duration, fallback: row.fallback });
+        setModal({ mode: 'edit', id: row.id });
+      }
+
+      function handleSave() {
+        if (modal.mode === 'add') {
+          const newRow = { id: nextId.current++, ...form, enabled: true };
+          setData(d => [...d, newRow]);
+        } else {
+          setData(d => d.map(r => r.id === modal.id ? { ...r, ...form } : r));
+        }
+        setModal(null);
+      }
+
+      function toggleEnabled(id) {
+        setData(d => d.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r));
+      }
+
+      function handleDelete(id) {
+        setData(d => d.filter(r => r.id !== id));
+        setDeleteTarget(null);
+      }
+
+      return (
+        <div className="p-6 max-w-[1600px] mx-auto">
+          {/* 顶部操作栏 */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="relative flex-shrink-0" style={{ width: 260 }}>
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[rgba(0,0,0,0.25)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input type="text" className="w-full h-8 pl-8 pr-3 border border-[#d9d9d9] rounded-md text-sm outline-none focus:border-[#1890ff] transition-colors bg-white"
+                placeholder="搜索策略名称或描述..."
+                value={search} onChange={e => setSearch(e.target.value)} />
+            </div>
+            <div className="ml-auto">
+              <button className="h-8 px-4 rounded-md text-sm font-medium text-white transition-colors" style={{ background: '#1890ff' }}
+                onMouseEnter={e => e.currentTarget.style.background='#40a9ff'}
+                onMouseLeave={e => e.currentTarget.style.background='#1890ff'}
+                onClick={openAdd}>
+                + 新增熔断策略
+              </button>
+            </div>
+          </div>
+
+          {/* 表格 */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+            <table className="w-full" style={{ tableLayout: 'auto', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#fafafa', borderBottom: '1px solid #f0f0f0' }}>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]">策略信息</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]" style={{ width: 100 }}>监控指标</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]" style={{ width: 120 }}>触发阈值</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]" style={{ width: 100 }}>熔断时长</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]" style={{ width: 90 }}>状态</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-[rgba(0,0,0,0.65)]" style={{ width: 100 }}>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 && (
+                  <tr><td colSpan={6} className="px-3 py-10 text-center text-sm text-[rgba(0,0,0,0.25)]">暂无数据</td></tr>
+                )}
+                {filtered.map((row, idx) => (
+                  <tr key={row.id} style={{ borderBottom: idx < filtered.length - 1 ? '1px solid #f0f0f0' : 'none' }} className="hover:bg-[#fafafa] transition-colors">
+                    <td className="px-3 py-3">
+                      <span className="text-sm font-medium text-[#1890ff] block">{row.name}</span>
+                      <span className="text-xs text-[rgba(0,0,0,0.45)] mt-0.5 block">{row.label}</span>
+                    </td>
+                    <td className="px-3 py-3">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs whitespace-nowrap" style={{ background: '#e6f4ff', color: '#1890ff', border: '1px solid #bae7ff' }}>{row.metric}</span>
+                    </td>
+                    <td className="px-3 py-3">
+                      <span className="text-sm text-[rgba(0,0,0,0.88)] font-mono">{row.threshold}</span>
+                    </td>
+                    <td className="px-3 py-3">
+                      <span className="text-sm text-[rgba(0,0,0,0.88)]">{row.duration}秒</span>
+                    </td>
+                    <td className="px-3 py-3" style={{ width: 90 }}>
+                      <label className="toggle-switch">
+                        <input type="checkbox" checked={row.enabled} onChange={() => toggleEnabled(row.id)} />
+                        <span className="toggle-slider"></span>
+                      </label>
+                    </td>
+                    <td className="px-3 py-3 text-center" style={{ width: 100 }}>
+                      <div className="flex items-center justify-center gap-2 relative">
+                        <button className="text-xs text-[#1890ff] hover:text-[#40a9ff] transition-colors" onClick={() => openEdit(row)}>编辑</button>
+                        <span className="text-[#d9d9d9]">|</span>
+                        <div className="relative">
+                          <button className="text-xs text-[#ff4d4f] hover:text-[#ff7875] transition-colors" onClick={() => setDeleteTarget(deleteTarget === row.id ? null : row.id)}>删除</button>
+                          {deleteTarget === row.id && (
+                            <div className="confirm-popover">
+                              <div className="text-sm text-[rgba(0,0,0,0.88)] mb-2 flex items-center gap-1.5">
+                                <svg className="w-4 h-4 text-[#faad14] flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
+                                确认删除此策略？
+                              </div>
+                              <div className="flex justify-end gap-2">
+                                <button className="h-6 px-2 text-xs rounded border border-[#d9d9d9] bg-white hover:border-[#1890ff] hover:text-[#1890ff] transition-colors" onClick={() => setDeleteTarget(null)}>取消</button>
+                                <button className="h-6 px-2 text-xs rounded bg-[#ff4d4f] text-white hover:bg-[#ff7875] transition-colors" onClick={() => handleDelete(row.id)}>确认删除</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 统计 */}
+          <div className="mt-3 text-xs text-[rgba(0,0,0,0.45)]">共 {data.length} 条策略，启用 {data.filter(r => r.enabled).length} 条</div>
+
+          {/* 弹框 */}
+          {modal && (
+            <Modal
+              title={modal.mode === 'add' ? '新增熔断策略' : '编辑熔断策略'}
+              onClose={() => setModal(null)}
+              onSave={handleSave}
+              form={form}
+              setForm={setForm}
+            />
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
