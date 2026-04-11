@@ -781,9 +781,15 @@
           propertyName: prop.name,
           propertyDesc: prop.description,
           fieldName: newForm.fieldName,
+          transformers: [],
           status: 1,
         };
-        setExtractions([...extractions, newExt]);
+        setExtractions(prev => [...prev, newExt]);
+        setAddingNew(false);
+        setNewForm({ ...emptyForm });
+        setErrors({});
+        // 立即打开弹框编辑转换管道
+        setModalExtId(newExt.id);
         if (recordChange) {
           recordChange('EXTRACTION_ADD', newExt.id, {
             propertyId: newForm.propertyId,
@@ -791,9 +797,6 @@
             transformers: [],
           });
         }
-        setAddingNew(false);
-        setNewForm({ ...emptyForm });
-        setErrors({});
       };
 
       const handleDelete = (id) => {
