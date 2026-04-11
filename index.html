@@ -38,27 +38,30 @@
 
   <script>
     var MENU = [
+      { group: '监控', items: [
+        { key: 'dashboard', label: '监控大盘', page: 'pages/dashboard.html' },
+      ]},
       { group: '数据配置', items: [
         { key: 'property-dictionary', label: '标准属性字典', page: 'pages/property-dictionary.html' },
         { key: 'event-points', label: '接入点管理', page: 'pages/entry-points.html' },
-        { key: 'feature-list', label: '特征管理', page: 'legacy-host.html?page=feature-list' },
+        { key: 'feature-list', label: '特征管理', page: 'pages/feature-list.html' },
       ]},
       { group: '决策配置', items: [
-        { key: 'activations', label: '策略管理', page: 'legacy-host.html?page=activations' },
-        { key: 'rules', label: '规则管理', page: 'legacy-host.html?page=rules' },
+        { key: 'activations', label: '策略管理', page: 'pages/activations.html' },
+        { key: 'rules', label: '规则管理', page: 'pages/rules.html' },
       ]},
       { group: '风控策略', items: [
-        { key: 'circuit-breakers', label: '服务熔断策略', page: 'legacy-host.html?page=circuit-breakers' },
-        { key: 'guardrails', label: '业务护栏策略', page: 'legacy-host.html?page=guardrails' },
-        { key: 'overrides', label: '手动干预管理', page: 'legacy-host.html?page=overrides' },
+        { key: 'circuit-breakers', label: '服务熔断策略', page: 'pages/circuit-breakers.html' },
+        { key: 'guardrails', label: '业务护栏策略', page: 'pages/guardrails.html' },
+        { key: 'overrides', label: '手动干预管理', page: 'pages/overrides.html' },
       ]},
       { group: '发布管理', items: [
-        { key: 'release-candidates', label: '待发布清单', page: 'legacy-host.html?page=release-candidates' },
-        { key: 'release-orders', label: '发布单列表', page: 'legacy-host.html?page=release-orders' },
+        { key: 'release-candidates', label: '待发布清单', page: 'pages/release-candidates.html' },
+        { key: 'release-orders', label: '发布单列表', page: 'pages/release-orders.html' },
       ]},
       { group: '系统管理', items: [
-        { key: 'user-management', label: '用户管理', page: 'legacy-host.html?page=user-management' },
-        { key: 'role-management', label: '角色管理', page: 'legacy-host.html?page=role-management' },
+        { key: 'user-management', label: '用户管理', page: 'pages/user-management.html' },
+        { key: 'role-management', label: '角色管理', page: 'pages/role-management.html' },
       ]},
     ];
 
