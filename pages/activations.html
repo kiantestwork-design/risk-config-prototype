@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>策略管理</title>
+  <script src="../tailwind-cdn.js"></script>
+  <script src="../vendor/react.production.min.js"></script>
+  <script src="../vendor/react-dom.production.min.js"></script>
+  <script src="../vendor/babel.min.js"></script>
+  <link rel="stylesheet" href="../index.css" />
+  <style>
+    body { background: #f0f2f5; color: rgba(0,0,0,0.88); font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; }
+    .confirm-popover {
+      position: absolute; right: 0; top: 100%; z-index: 10; margin-top: 4px;
+      background: white; border-radius: 8px; padding: 12px 16px; white-space: nowrap;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12), 0 9px 28px 8px rgba(0,0,0,0.05);
+    }
+    .toggle-switch {
+      position: relative; display: inline-block; width: 40px; height: 20px;
+    }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #d9d9d9; border-radius: 20px; transition: 0.2s;
+    }
+    .toggle-slider:before {
+      position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px;
+      background-color: white; border-radius: 50%; transition: 0.2s;
+    }
+    input:checked + .toggle-slider { background-color: #1890ff; }
+    input:checked + .toggle-slider:before { transform: translateX(20px); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>window.onerror=function(m,s,l,c,e){document.getElementById('root').innerHTML='<pre style="color:red;padding:20px;font-size:14px">JS Error:\n'+m+'\nLine: '+l+', Col: '+c+'\n'+(e&&e.stack||'')+'</pre>';}</script>
+  <script type="text/babel">
+    const { useState, useRef, useEffect, useCallback } = React;
+
+    /* ================================================================
+     *  Mock 数据
+     * ================================================================ */
+    const MOCK_ENTRY_POINTS = [
+      { code: 'EP00010001', name: '登录风控' },
+      { code: 'EP00000005', name: 'App提现' },
+      { code: 'EP00020001', name: '注册风控' },
+      { code: 'EP00030001', name: '充值风控' },
+      { code: 'EP00040001', name: '交易风控' },
+    ];
+
+    const MOCK_RULES = [
+      { id: 'R001', code: 'device_fingerprint_check', name: '设备指纹检查', type: 'SCORE', status: 1 },
+      { id: 'R002', code: 'ip_blacklist_check',       name: 'IP黑名单检查', type: 'LIST',  status: 1 },
+      { id: 'R003', code: 'large_txn_check',          name: '大额交易检查', type: 'THRESHOLD', status: 1 },
+      { id: 'R004', code: 'geo_anomaly_check',        name: '异地登录检测', type: 'SCORE', status: 1 },
+      { id: 'R005', code: 'frequency_check',          name: '高频操作检测', type: 'FREQ',  status: 2 },
+      { id: 'R006', code: 'new_device_check',         name: '新设备首次登录', type: 'LIST', status: 1 },
+    ];
+
+    const INIT_DATA = [
+      {
+        id: 'P001', code: 'login_risk_policy', name: '登录风控策略', description: '针对登录行为的综合风险控制策略',
+        entryPoints: ['EP00010001'], status: 1, publishStatus: 'PUBLISHED',
+        rules: [
+          { ruleId: 'R001', weight: 60, enabled: true },
+          { ruleId: 'R004', weight: 30, enabled: true },
+          { ruleId: 'R002', weight: 10, enabled: false },
+        ]
+      },
+      {
+        id: 'P002', code: 'withdraw_risk_policy', name: '提现风控策略', description: '对提现操作进行实时风险监控',
+        entryPoints: ['EP00000005'], status: 1, publishStatus: 'PUBLISHED',
+        rules: [
+          { ruleId: 'R003', weight: 70, enabled: true },
+          { ruleId: 'R001', weight: 30, enabled: true },
+        ]
+      },
+      {
+        id: 'P003', code: 'register_risk_policy', name: '注册风控策略', description: '新用户注册阶段的风险识别',
+        entryPoints: ['EP00020001'], status: 1, publishStatus: 'DRAFT',
+        rules: [
+          { ruleId: 'R006', weight: 100, enabled: true },
+        ]
+      },
+      {
+        id: 'P004', code: 'recharge_policy', name: '充值安全策略', description: '充值渠道安全管控策略',
+        entryPoints: ['EP00030001'], status: 2, publishStatus: 'PUBLISHED',
+        rules: [
+          { ruleId: 'R003', weight: 50, enabled: true },
+          { ruleId: 'R005', weight: 50, enabled: false },
+        ]
+      },
+      {
+        id: 'P005', code: 'p2p_trade_policy', name: 'P2P交易策略', description: 'P2P平台交易行为监控',
+        entryPoints: [], status: 1, publishStatus: 'DRAFT',
+        rules: []
+      },
+    ];
+
+    function getRunStatus(item) {
+      if (item.status === 2) return 'disabled';
+      if (item.publishStatus === 'PUBLISHED') return 'running';
+      return 'draft';
+    }
+
+    function RunStatusTag({ item }) {
+      const s = getRunStatus(item);
+      if (s === 'running') return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0"
+          style={{ background: '#f6ffed', color: '#52c41a', border: '1px solid #b7eb8f' }}>
+          <span className="w-1.5 h-1.5 rounded-full bg-[#52c41a] inline-block"></span>运行中
+        </span>
+      );
+      if (s === 'disabled') return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0"
+          style={{ background: '#f5f5f5', color: 'rgba(0,0,0,0.45)', border: '1px solid #d9d9d9' }}>
+          <span className="w-1.5 h-1.5 rounded-full bg-[rgba(0,0,0,0.25)] inline-block"></span>已停用
+        </span>
+      );
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0"
+          style={{ background: '#fff7e6', color: '#faad14', border: '1px solid #ffd591' }}>
+          <span className="w-1.5 h-1.5 rounded-full bg-[#faad14] inline-block"></span>未发布
+        </span>
+      );
+    }
+
+    function ConfirmPopover({ visible, onConfirm, onCancel, message }) {
+      if (!visible) return null;
+      return (
+        <div className="confirm-popover">
+          <div className="text-sm text-[rgba(0,0,0,0.88)] mb-2 flex items-center gap-1.5">
+            <svg className="w-4 h-4 text-[#faad14] flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            {message}
+          </div>
+          <div className="flex justify-end gap-2">
+            <button className="h-6 px-2 text-xs rounded border border-[#d9d9d9] bg-white text-[rgba(0,0,0,0.65)] hover:border-[#1890ff] hover:text-[#1890ff] transition-colors" onClick={onCancel}>取消</button>
+            <button className="h-6 px-2 text-xs rounded bg-[#ff4d4f] text-white border-none hover:bg-[#ff7875] transition-colors" onClick={onConfirm}>确认删除</button>
+          </div>
+        </div>
+      );
+    }
+
+    /* 多选下拉组件 */
+    function MultiSelect({ options, value, onChange, placeholder }) {
+      const [open, setOpen] = useState(false);
+      const ref = useRef(null);
+
+      useEffect(() => {
+        function handleClick(e) {
+          if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+        }
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+      }, []);
+
+      function toggle(v) {
+        if (value.includes(v)) onChange(value.filter(x => x !== v));
+        else onChange([...value, v]);
+      }
+
+      return (
+        <div ref={ref} className="relative">
+          <div
+            className="min-h-[32px] w-full border border-[#d9d9d9] rounded-md px-2 py-1 bg-white cursor-pointer flex flex-wrap gap-1 items-center transition-colors"
+            style={{ borderColor: open ? '#1890ff' : '#d9d9d9' }}
+            onClick={() => setOpen(!open)}
+          >
+            {value.length === 0 && <span className="text-sm text-[rgba(0,0,0,0.25)]">{placeholder || '请选择'}</span>}
+            {value.map(v => {
+              const opt = options.find(o => o.value === v);
+              return opt ? (
+                <span key={v} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs whitespace-nowrap flex-shrink-0"
+                  style={{ background: '#e6f4ff', color: '#1890ff', border: '1px solid #91caff' }}>
+                  {opt.label}
+                  <span className="cursor-pointer hover:text-[#ff4d4f] transition-colors" onClick={e => { e.stopPropagation(); toggle(v); }}>×</span>
+                </span>
+              ) : null;
+            })}
+            <span className="ml-auto text-[rgba(0,0,0,0.25)]">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 9l-7 7-7-7" />
+              </svg>
+            </span>
+          </div>
+          {open && (
+            <div className="absolute z-20 left-0 top-full mt-1 w-full bg-white rounded-lg border border-[#d9d9d9] py-1"
+              style={{ boxShadow: '0 6px 16px rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12)' }}>
+              {options.map(opt => (
+                <div key={opt.value}
+                  className="px-3 py-2 text-sm cursor-pointer hover:bg-[#f5f5f5] flex items-center gap-2 transition-colors"
+                  onClick={() => toggle(opt.value)}>
+                  <input type="checkbox" readOnly checked={value.includes(opt.value)}
+                    className="rounded accent-[#1890ff]" />
+                  <span style={{ color: value.includes(opt.value) ? '#1890ff' : 'rgba(0,0,0,0.88)' }}>{opt.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    /* ToggleSwitch */
+    function ToggleSwitch({ checked, onChange }) {
+      return (
+        <label className="toggle-switch">
+          <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
+          <span className="toggle-slider"></span>
+        </label>
+      );
+    }
+
+    /* ================================================================
+     *  编辑视图
+     * ================================================================ */
+    function EditView({ policy, onBack, onSave }) {
+      const isNew = !policy;
+      const [form, setForm] = useState(policy ? {
+        code: policy.code,
+        name: policy.name,
+        description: policy.description,
+        entryPoints: [...policy.entryPoints],
+        enabled: policy.status === 1,
+        rules: policy.rules.map(r => ({ ...r })),
+      } : {
+        code: '', name: '', description: '',
+        entryPoints: [], enabled: true, rules: [],
+      });
+
+      const [addRuleOpen, setAddRuleOpen] = useState(false);
+
+      const epOptions = MOCK_ENTRY_POINTS.map(ep => ({ value: ep.code, label: `${ep.code} - ${ep.name}` }));
+      const linkedRuleIds = form.rules.map(r => r.ruleId);
+      const availableRules = MOCK_RULES.filter(r => !linkedRuleIds.includes(r.id));
+
+      function updateRule(ruleId, field, value) {
+        setForm(prev => ({
+          ...prev,
+          rules: prev.rules.map(r => r.ruleId === ruleId ? { ...r, [field]: value } : r)
+        }));
+      }
+
+      function removeRule(ruleId) {
+        setForm(prev => ({ ...prev, rules: prev.rules.filter(r => r.ruleId !== ruleId) }));
+      }
+
+      function addRule(ruleId) {
+        setForm(prev => ({ ...prev, rules: [...prev.rules, { ruleId, weight: 100, enabled: true }] }));
+        setAddRuleOpen(false);
+      }
+
+      function handleSave() {
+        if (!form.name.trim()) { alert('请填写策略名称'); return; }
+        onSave(form);
+      }
+
+      return (
+        <div className="p-6 max-w-[1600px] mx-auto">
+          {/* 顶部返回 */}
+          <div className="flex items-center gap-3 mb-6">
+            <button
+              className="flex items-center gap-1.5 text-sm text-[rgba(0,0,0,0.65)] hover:text-[#1890ff] transition-colors"
+              onClick={onBack}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              返回列表
+            </button>
+            <span className="text-[rgba(0,0,0,0.25)]">/</span>
+            <span className="text-sm font-medium text-[rgba(0,0,0,0.88)]">{isNew ? '新增策略' : '编辑策略'}</span>
+          </div>
+
+          {/* 基础信息卡片 */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-6 mb-4">
+            <h3 className="text-base font-semibold text-[rgba(0,0,0,0.88)] mb-5 pb-3 border-b border-[#f0f0f0]">基础信息</h3>
+            <div className="grid grid-cols-2 gap-5">
+              {/* 策略编码 */}
+              <div>
+                <label className="block text-sm font-medium text-[rgba(0,0,0,0.88)] mb-1.5">策略编码</label>
+                {isNew ? (
+                  <input
+                    type="text"
+                    className="w-full h-8 px-3 border border-[#d9d9d9] rounded-md text-sm outline-none focus:border-[#1890ff] transition-colors bg-white"
+                    placeholder="请输入策略编码"
+                    value={form.code}
+                    onChange={e => setForm(p => ({ ...p, code: e.target.value }))}
+                  />
+                ) : (
+                  <div className="h-8 px-3 flex items-center border border-[#f0f0f0] rounded-md bg-[#fafafa] text-sm text-[rgba(0,0,0,0.45)]">
+                    {form.code}
+                  </div>
+                )}
+              </div>
+              {/* 策略名称 */}
+              <div>
+                <label className="block text-sm font-medium text-[rgba(0,0,0,0.88)] mb-1.5">策略名称 <span className="text-[#ff4d4f]">*</span></label>
+                <input
+                  type="text"
+                  className="w-full h-8 px-3 border border-[#d9d9d9] rounded-md text-sm outline-none focus:border-[#1890ff] transition-colors bg-white"
+                  placeholder="请输入策略名称"
+                  value={form.name}
+                  onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                />
+              </div>
+              {/* 描述 */}
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-[rgba(0,0,0,0.88)] mb-1.5">描述</label>
+                <textarea
+                  className="w-full px-3 py-2 border border-[#d9d9d9] rounded-md text-sm outline-none focus:border-[#1890ff] transition-colors bg-white resize-none"
+                  rows={3}
+                  placeholder="请输入策略描述"
+                  value={form.description}
+                  onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+                />
+              </div>
+              {/* 关联接入点 */}
+              <div>
+                <label className="block text-sm font-medium text-[rgba(0,0,0,0.88)] mb-1.5">关联接入点</label>
+                <MultiSelect
+                  options={epOptions}
+                  value={form.entryPoints}
+                  onChange={v => setForm(p => ({ ...p, entryPoints: v }))}
+                  placeholder="请选择关联接入点"
+                />
+              </div>
+              {/* 启用状态 */}
+              <div>
+                <label className="block text-sm font-medium text-[rgba(0,0,0,0.88)] mb-1.5">启用状态</label>
+                <div className="flex items-center gap-2 h-8">
+                  <ToggleSwitch checked={form.enabled} onChange={v => setForm(p => ({ ...p, enabled: v }))} />
+                  <span className="text-sm text-[rgba(0,0,0,0.65)]">{form.enabled ? '已启用' : '已停用'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 关联规则卡片 */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-6 mb-6">
+            <div className="flex items-center justify-between mb-5 pb-3 border-b border-[#f0f0f0]">
+              <h3 className="text-base font-semibold text-[rgba(0,0,0,0.88)]">关联规则</h3>
+              <div className="relative">
+                <button
+                  className="h-8 px-3 rounded-md text-sm border border-[#d9d9d9] bg-white text-[rgba(0,0,0,0.88)] hover:border-[#1890ff] hover:text-[#1890ff] transition-colors"
+                  onClick={() => setAddRuleOpen(!addRuleOpen)}
+                >
+                  + 添加规则
+                </button>
+                {addRuleOpen && availableRules.length > 0 && (
+                  <div className="absolute right-0 top-full mt-1 w-64 bg-white rounded-lg border border-[#d9d9d9] py-1 z-20"
+                    style={{ boxShadow: '0 6px 16px rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12)' }}>
+                    {availableRules.map(r => (
+                      <div key={r.id}
+                        className="px-3 py-2 text-sm cursor-pointer hover:bg-[#f5f5f5] transition-colors"
+                        onClick={() => addRule(r.id)}>
+                        <span className="font-medium text-[rgba(0,0,0,0.88)]">{r.code}</span>
+                        <span className="text-[rgba(0,0,0,0.45)] ml-2 text-xs">{r.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {addRuleOpen && availableRules.length === 0 && (
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg border border-[#d9d9d9] py-3 z-20 text-center text-sm text-[rgba(0,0,0,0.25)]"
+                    style={{ boxShadow: '0 6px 16px rgba(0,0,0,0.08)' }}>
+                    暂无可添加规则
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {form.rules.length === 0 ? (
+              <div className="py-8 text-center text-sm text-[rgba(0,0,0,0.25)]">暂无关联规则，点击「添加规则」</div>
+            ) : (
+              <table className="w-full" style={{ tableLayout: 'auto', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#fafafa', borderBottom: '1px solid #f0f0f0' }}>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]">规则编码</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]">规则名称</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]" style={{ width: 120 }}>权重</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]" style={{ width: 80 }}>启用</th>
+                    <th className="px-3 py-3 text-center text-xs font-medium text-[rgba(0,0,0,0.65)]" style={{ width: 60 }}>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {form.rules.map((r, idx) => {
+                    const rule = MOCK_RULES.find(x => x.id === r.ruleId);
+                    if (!rule) return null;
+                    return (
+                      <tr key={r.ruleId} style={{ borderBottom: idx < form.rules.length - 1 ? '1px solid #f0f0f0' : 'none' }}
+                        className="hover:bg-[#fafafa] transition-colors">
+                        <td className="px-3 py-3 text-sm text-[rgba(0,0,0,0.88)]">{rule.code}</td>
+                        <td className="px-3 py-3 text-sm text-[rgba(0,0,0,0.65)]">{rule.name}</td>
+                        <td className="px-3 py-3">
+                          <input
+                            type="number"
+                            className="w-20 h-7 px-2 border border-[#d9d9d9] rounded text-sm outline-none focus:border-[#1890ff] transition-colors text-center"
+                            value={r.weight === null ? '' : r.weight}
+                            onChange={e => updateRule(r.ruleId, 'weight', e.target.value === '' ? null : parseInt(e.target.value))}
+                          />
+                        </td>
+                        <td className="px-3 py-3">
+                          <ToggleSwitch checked={r.enabled} onChange={v => updateRule(r.ruleId, 'enabled', v)} />
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <button
+                            className="text-xs text-[#ff4d4f] hover:text-[#ff7875] transition-colors"
+                            onClick={() => removeRule(r.ruleId)}
+                          >
+                            移除
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* 底部操作按钮 */}
+          <div className="flex items-center gap-3">
+            <button
+              className="h-8 px-4 rounded-md text-sm font-medium text-white transition-colors"
+              style={{ background: '#1890ff' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#40a9ff'}
+              onMouseLeave={e => e.currentTarget.style.background = '#1890ff'}
+              onClick={handleSave}
+            >
+              保存
+            </button>
+            <button
+              className="h-8 px-4 rounded-md text-sm border border-[#d9d9d9] bg-white text-[rgba(0,0,0,0.88)] hover:border-[#1890ff] hover:text-[#1890ff] transition-colors"
+              onClick={onBack}
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    /* ================================================================
+     *  列表视图
+     * ================================================================ */
+    function ListView({ data, onEdit, onDelete, onNew }) {
+      const [search, setSearch] = useState('');
+      const [statusFilter, setStatusFilter] = useState('all');
+      const [deleteTarget, setDeleteTarget] = useState(null);
+
+      const filtered = data.filter(p => {
+        const matchSearch = !search ||
+          p.code.toLowerCase().includes(search.toLowerCase()) ||
+          p.name.toLowerCase().includes(search.toLowerCase());
+        const runStatus = getRunStatus(p);
+        const matchStatus = statusFilter === 'all' ||
+          (statusFilter === 'running' && runStatus === 'running') ||
+          (statusFilter === 'disabled' && runStatus === 'disabled') ||
+          (statusFilter === 'draft' && runStatus === 'draft');
+        return matchSearch && matchStatus;
+      });
+
+      return (
+        <div className="p-6 max-w-[1600px] mx-auto">
+          {/* 顶部操作栏 */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="relative flex-shrink-0" style={{ width: 260 }}>
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[rgba(0,0,0,0.25)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                className="w-full h-8 pl-8 pr-3 border border-[#d9d9d9] rounded-md text-sm outline-none focus:border-[#1890ff] transition-colors bg-white"
+                placeholder="搜索策略编码或名称..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+            <select
+              className="h-8 pl-3 border border-[#d9d9d9] rounded-md text-sm outline-none focus:border-[#1890ff] transition-colors bg-white text-[rgba(0,0,0,0.88)] appearance-none cursor-pointer"
+              style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(0,0,0,0.25)' stroke-width='2'%3E%3Cpath d='M19 9l-7 7-7-7'/%3E%3C/svg%3E\")", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', paddingRight: '28px' }}
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+            >
+              <option value="all">全部状态</option>
+              <option value="running">运行中</option>
+              <option value="disabled">已停用</option>
+              <option value="draft">未发布</option>
+            </select>
+            <div className="ml-auto">
+              <button
+                className="h-8 px-4 rounded-md text-sm font-medium text-white transition-colors"
+                style={{ background: '#1890ff' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#40a9ff'}
+                onMouseLeave={e => e.currentTarget.style.background = '#1890ff'}
+                onClick={onNew}
+              >
+                + 新增策略
+              </button>
+            </div>
+          </div>
+
+          {/* 表格卡片 */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+            <table className="w-full" style={{ tableLayout: 'auto', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#fafafa', borderBottom: '1px solid #f0f0f0' }}>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]">策略信息</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]" style={{ width: 100 }}>关联规则数</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]" style={{ width: 120 }}>关联接入点</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]" style={{ width: 90 }}>运行状态</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-[rgba(0,0,0,0.65)]" style={{ width: 100 }}>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-10 text-center text-sm text-[rgba(0,0,0,0.25)]">暂无数据</td>
+                  </tr>
+                )}
+                {filtered.map((p, idx) => (
+                  <tr key={p.id}
+                    style={{ borderBottom: idx < filtered.length - 1 ? '1px solid #f0f0f0' : 'none' }}
+                    className="hover:bg-[#fafafa] transition-colors">
+
+                    {/* 策略信息 */}
+                    <td className="px-3 py-3">
+                      <button
+                        className="text-sm font-medium text-[#1890ff] hover:text-[#40a9ff] transition-colors block text-left"
+                        onClick={() => onEdit(p)}
+                      >
+                        {p.code}
+                      </button>
+                      <span className="text-xs text-[rgba(0,0,0,0.45)] mt-0.5 block">{p.name}</span>
+                    </td>
+
+                    {/* 关联规则数 */}
+                    <td className="px-3 py-3">
+                      <span className="text-sm text-[rgba(0,0,0,0.88)]">{p.rules.length} 条规则</span>
+                    </td>
+
+                    {/* 关联接入点 */}
+                    <td className="px-3 py-3">
+                      {p.entryPoints.length === 0 ? (
+                        <span className="text-sm text-[rgba(0,0,0,0.25)]">-</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {p.entryPoints.map(ep => (
+                            <span key={ep} className="inline-block px-1.5 py-0.5 rounded text-xs whitespace-nowrap flex-shrink-0"
+                              style={{ background: '#f5f5f5', color: 'rgba(0,0,0,0.65)', border: '1px solid #d9d9d9' }}>
+                              {ep}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+
+                    {/* 运行状态 */}
+                    <td className="px-3 py-3" style={{ width: 90 }}>
+                      <RunStatusTag item={p} />
+                    </td>
+
+                    {/* 操作列 */}
+                    <td className="px-3 py-3 text-center" style={{ width: 100 }}>
+                      <div className="flex items-center justify-center gap-2 relative">
+                        <button
+                          className="text-xs text-[#1890ff] hover:text-[#40a9ff] transition-colors"
+                          onClick={() => onEdit(p)}
+                        >
+                          编辑
+                        </button>
+                        <span className="text-[rgba(0,0,0,0.15)]">|</span>
+                        <div className="relative">
+                          <button
+                            className="text-xs text-[#ff4d4f] hover:text-[#ff7875] transition-colors"
+                            onClick={() => setDeleteTarget(deleteTarget === p.id ? null : p.id)}
+                          >
+                            删除
+                          </button>
+                          <ConfirmPopover
+                            visible={deleteTarget === p.id}
+                            message={`确定删除策略「${p.code}」吗？`}
+                            onConfirm={() => { onDelete(p.id); setDeleteTarget(null); }}
+                            onCancel={() => setDeleteTarget(null)}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="px-3 py-2 border-t border-[#f0f0f0] flex items-center justify-between">
+              <span className="text-xs text-[rgba(0,0,0,0.45)]">共 {filtered.length} 条记录</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ================================================================
+     *  主应用
+     * ================================================================ */
+    function App() {
+      const [data, setData] = useState(INIT_DATA);
+      const [view, setView] = useState('list'); // 'list' | 'edit'
+      const [editTarget, setEditTarget] = useState(null);
+
+      function handleEdit(policy) {
+        setEditTarget(policy);
+        setView('edit');
+      }
+
+      function handleNew() {
+        setEditTarget(null);
+        setView('edit');
+      }
+
+      function handleBack() {
+        setView('list');
+        setEditTarget(null);
+      }
+
+      function handleDelete(id) {
+        setData(prev => prev.filter(p => p.id !== id));
+      }
+
+      function handleSave(form) {
+        if (editTarget) {
+          setData(prev => prev.map(p => p.id === editTarget.id ? {
+            ...p,
+            name: form.name,
+            description: form.description,
+            entryPoints: form.entryPoints,
+            status: form.enabled ? 1 : 2,
+            rules: form.rules,
+          } : p));
+        } else {
+          const newPolicy = {
+            id: 'P' + Date.now(),
+            code: form.code || 'new_policy_' + Date.now(),
+            name: form.name,
+            description: form.description,
+            entryPoints: form.entryPoints,
+            status: form.enabled ? 1 : 2,
+            publishStatus: 'DRAFT',
+            rules: form.rules,
+          };
+          setData(prev => [...prev, newPolicy]);
+        }
+        setView('list');
+        setEditTarget(null);
+      }
+
+      if (view === 'edit') {
+        return <EditView policy={editTarget} onBack={handleBack} onSave={handleSave} />;
+      }
+
+      return (
+        <ListView
+          data={data}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onNew={handleNew}
+        />
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
