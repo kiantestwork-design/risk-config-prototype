@@ -357,6 +357,10 @@
 
       // 删除
       const handleDelete = (id) => {
+        const prop = properties.find(p => p.id === id);
+        if (prop && prop.refCount > 0) {
+          return;
+        }
         setProperties(properties.filter(p => p.id !== id));
         setDeleteConfirmId(null);
       };
@@ -506,7 +510,13 @@
                       <td className="px-3 py-3 text-center">
                         <StatusToggle
                           enabled={prop.status === 1}
-                          onChange={(v) => setProperties(properties.map(p => p.id === prop.id ? { ...p, status: v ? 1 : 0 } : p))}
+                          onChange={(v) => {
+                            if (!v && prop.refCount > 0) {
+                              alert(`该属性正在被 ${prop.refCount} 个接入点引用，无法禁用`);
+                              return;
+                            }
+                            setProperties(properties.map(p => p.id === prop.id ? { ...p, status: v ? 1 : 0 } : p));
+                          }}
                         />
                       </td>
                       {/* 操作 */}
@@ -514,14 +524,20 @@
                         <div className="relative inline-flex items-center gap-2">
                           <button className="text-xs text-[#1890ff] hover:text-[#40a9ff] transition-colors"
                             onClick={() => startEdit(prop)}>编辑</button>
-                          <button className="text-xs text-[#ff4d4f] hover:text-[#ff7875] transition-colors"
-                            onClick={() => setDeleteConfirmId(prop.id)}>删除</button>
-                          <ConfirmPopover
-                            visible={deleteConfirmId === prop.id}
-                            onConfirm={() => handleDelete(prop.id)}
-                            onCancel={() => setDeleteConfirmId(null)}
-                            message={prop.refCount > 0 ? `该属性正在被 ${prop.refCount} 个接入点使用，确认删除？` : '确认删除该属性？'}
-                          />
+                          {prop.refCount > 0 ? (
+                            <span className="text-xs text-[rgba(0,0,0,0.25)] cursor-not-allowed" title={`被 ${prop.refCount} 个接入点引用，无法删除`}>删除</span>
+                          ) : (
+                            <button className="text-xs text-[#ff4d4f] hover:text-[#ff7875] transition-colors"
+                              onClick={() => setDeleteConfirmId(prop.id)}>删除</button>
+                          )}
+                          {prop.refCount === 0 && (
+                            <ConfirmPopover
+                              visible={deleteConfirmId === prop.id}
+                              onConfirm={() => handleDelete(prop.id)}
+                              onCancel={() => setDeleteConfirmId(null)}
+                              message="确认删除该属性？"
+                            />
+                          )}
                         </div>
                       </td>
                     </tr>
