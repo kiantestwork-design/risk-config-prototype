@@ -57,6 +57,124 @@
       { value: 'REGEX', label: '正则表达式' },
     ];
 
+    const OPERATORS = [
+      { value: 'SCALE', label: '除法 SCALE', category: '数值计算', hasParam: true, paramLabel: '除数', paramKey: 'divisor' },
+      { value: 'OFFSET', label: '偏移 OFFSET', category: '数值计算', hasParam: true, paramLabel: '偏移量', paramKey: 'offset' },
+      { value: 'ABS', label: '绝对值 ABS', category: '数值计算', hasParam: false },
+      { value: 'TO_INT', label: '转整数 TO_INT', category: '类型转换', hasParam: false },
+      { value: 'TO_DOUBLE', label: '转浮点 TO_DOUBLE', category: '类型转换', hasParam: false },
+      { value: 'TO_STR', label: '转字符串 TO_STR', category: '类型转换', hasParam: false },
+      { value: 'FROM_WEI', label: 'Wei→Eth FROM_WEI', category: 'Web3', hasParam: false },
+      { value: 'SUB_STR', label: '截取 SUB_STR', category: '字符串', hasParam: true, paramLabel: '起始,长度', paramKey: 'range' },
+      { value: 'TRIM', label: '去空格 TRIM', category: '字符串', hasParam: false },
+      { value: 'CUSTOM', label: '自定义表达式', category: '自定义', hasParam: true, paramLabel: '表达式 (用 val 表示值)', paramKey: 'expression' },
+    ];
+
+    // 获取值的JS类型标签
+    function getTypeLabel(val) {
+      if (val === null || val === undefined) return 'Null';
+      if (typeof val === 'number') return Number.isInteger(val) ? 'Integer' : 'Double';
+      if (typeof val === 'boolean') return 'Boolean';
+      if (typeof val === 'string') return 'String';
+      return typeof val;
+    }
+
+    // 单步转换，返回 { value, type, error }
+    function applyTransformer(val, operator, params) {
+      try {
+        switch (operator) {
+          case 'SCALE': {
+            const n = Number(val);
+            if (isNaN(n)) return { value: val, type: getTypeLabel(val), error: '无法转为数字' };
+            const divisor = Number(params.divisor);
+            if (!divisor) return { value: val, type: getTypeLabel(val), error: '除数不能为0' };
+            const result = n / divisor;
+            return { value: result, type: getTypeLabel(result), error: null };
+          }
+          case 'OFFSET': {
+            const n = Number(val);
+            if (isNaN(n)) return { value: val, type: getTypeLabel(val), error: '无法转为数字' };
+            const result = n + Number(params.offset || 0);
+            return { value: result, type: getTypeLabel(result), error: null };
+          }
+          case 'ABS': {
+            const n = Number(val);
+            if (isNaN(n)) return { value: val, type: getTypeLabel(val), error: '无法转为数字' };
+            const result = Math.abs(n);
+            return { value: result, type: getTypeLabel(result), error: null };
+          }
+          case 'TO_INT': {
+            const n = Number(val);
+            if (isNaN(n)) return { value: val, type: getTypeLabel(val), error: '无法转为数字' };
+            const result = Math.floor(n);
+            return { value: result, type: 'Integer', error: null };
+          }
+          case 'TO_DOUBLE': {
+            const n = Number(val);
+            if (isNaN(n)) return { value: val, type: getTypeLabel(val), error: '无法转为数字' };
+            const result = parseFloat(n);
+            return { value: result, type: 'Double', error: null };
+          }
+          case 'TO_STR': {
+            const result = String(val);
+            return { value: result, type: 'String', error: null };
+          }
+          case 'FROM_WEI': {
+            const n = Number(val);
+            if (isNaN(n)) return { value: val, type: getTypeLabel(val), error: '无法转为数字' };
+            const result = n / 1e18;
+            return { value: result, type: 'Double', error: null };
+          }
+          case 'SUB_STR': {
+            const s = String(val);
+            const [start, len] = (params.range || '0,0').split(',').map(Number);
+            const result = s.substring(start, start + len);
+            return { value: result, type: 'String', error: null };
+          }
+          case 'TRIM': {
+            const result = String(val).trim();
+            return { value: result, type: 'String', error: null };
+          }
+          case 'CUSTOM': {
+            const expr = params.expression || 'val';
+            try {
+              const fn = new Function('val', `return (${expr});`);
+              const result = fn(val);
+              return { value: result, type: getTypeLabel(result), error: null };
+            } catch (e) {
+              return { value: val, type: getTypeLabel(val), error: `表达式错误: ${e.message}` };
+            }
+          }
+          default:
+            return { value: val, type: getTypeLabel(val), error: `未知算子: ${operator}` };
+        }
+      } catch (e) {
+        return { value: val, type: getTypeLabel(val), error: e.message };
+      }
+    }
+
+    // 执行整个 pipeline，返回每一步的结果数组
+    function runPipeline(rawValue, transformers) {
+      const steps = [{
+        step: 0,
+        label: '提取原始值',
+        value: rawValue,
+        type: rawValue === undefined ? 'Null' : getTypeLabel(rawValue),
+        error: rawValue === undefined ? '路径未匹配' : null,
+      }];
+      if (rawValue === undefined || !transformers || transformers.length === 0) return steps;
+      let current = rawValue;
+      transformers.forEach((t, i) => {
+        const opDef = OPERATORS.find(o => o.value === t.operator);
+        const paramStr = t.params && Object.values(t.params).filter(Boolean).join(',');
+        const label = paramStr ? `${t.operator}(${paramStr})` : t.operator;
+        const result = applyTransformer(current, t.operator, t.params || {});
+        steps.push({ step: i + 1, label, value: result.value, type: result.type, error: result.error });
+        if (!result.error) current = result.value;
+      });
+      return steps;
+    }
+
     const MOCK_STANDARD_PROPERTIES = [
       { id: '1', name: 'user_id', description: '用户ID', fieldType: 'STRING', validateType: 'STRING', validateArgs: '' },
       { id: '2', name: 'trade_amount', description: '交易金额', fieldType: 'DOUBLE', validateType: 'DOUBLE', validateArgs: '' },
@@ -72,22 +190,25 @@
     ];
 
     const MOCK_EXTRACTIONS_LOGIN = [
-      { id: 'e1', propertyId: '1', propertyName: 'user_id', propertyDesc: '用户ID', fieldName: 'properties.userId', status: 1 },
-      { id: 'e2', propertyId: '6', propertyName: 'device_id', propertyDesc: '设备ID', fieldName: 'properties.deviceId', status: 1 },
-      { id: 'e3', propertyId: '5', propertyName: 'client_ip', propertyDesc: '客户端IP', fieldName: 'properties.clientIp', status: 1 },
-      { id: 'e4', propertyId: '7', propertyName: 'platform', propertyDesc: '登录平台', fieldName: 'properties.platform', status: 1 },
-      { id: 'e5', propertyId: '8', propertyName: 'login_tx_id', propertyDesc: '登录事务ID', fieldName: 'properties.loginTransactionId', status: 1 },
-      { id: 'e6', propertyId: '9', propertyName: 'sms_verified', propertyDesc: '短信验证状态', fieldName: 'properties.smsVerified', status: 1 },
-      { id: 'e7', propertyId: '10', propertyName: 'email_verified', propertyDesc: '邮箱验证状态', fieldName: 'properties.emailVerified', status: 1 },
+      { id: 'e1', propertyId: '1', propertyName: 'user_id', propertyDesc: '用户ID', fieldName: 'properties.userId', transformers: [], status: 1 },
+      { id: 'e2', propertyId: '6', propertyName: 'device_id', propertyDesc: '设备ID', fieldName: 'properties.deviceId', transformers: [], status: 1 },
+      { id: 'e3', propertyId: '5', propertyName: 'client_ip', propertyDesc: '客户端IP', fieldName: 'properties.clientIp', transformers: [], status: 1 },
+      { id: 'e4', propertyId: '7', propertyName: 'platform', propertyDesc: '登录平台', fieldName: 'properties.platform', transformers: [], status: 1 },
+      { id: 'e5', propertyId: '8', propertyName: 'login_tx_id', propertyDesc: '登录事务ID', fieldName: 'properties.loginTransactionId', transformers: [], status: 1 },
+      { id: 'e6', propertyId: '9', propertyName: 'sms_verified', propertyDesc: '短信验证状态', fieldName: 'properties.smsVerified', transformers: [], status: 1 },
+      { id: 'e7', propertyId: '10', propertyName: 'email_verified', propertyDesc: '邮箱验证状态', fieldName: 'properties.emailVerified', transformers: [], status: 1 },
     ];
 
     const MOCK_EXTRACTIONS_WITHDRAW = [
-      { id: 'w1', propertyId: '1', propertyName: 'user_id', propertyDesc: '用户ID', fieldName: 'properties.fromUserId', status: 1 },
-      { id: 'w2', propertyId: '2', propertyName: 'trade_amount', propertyDesc: '交易金额', fieldName: 'properties.amount', status: 1 },
-      { id: 'w3', propertyId: '3', propertyName: 'target_address', propertyDesc: '提现目标地址', fieldName: 'properties.toAddress', status: 1 },
-      { id: 'w4', propertyId: '4', propertyName: 'asset_type', propertyDesc: '币种', fieldName: 'properties.assetType', status: 1 },
-      { id: 'w5', propertyId: '5', propertyName: 'client_ip', propertyDesc: '客户端IP', fieldName: 'eventInfo.clientIp', status: 1 },
-      { id: 'w6', propertyId: '11', propertyName: 'request_id', propertyDesc: '请求唯一标识', fieldName: 'eventInfo.requestId', status: 1 },
+      { id: 'w1', propertyId: '1', propertyName: 'user_id', propertyDesc: '用户ID', fieldName: 'properties.fromUserId', transformers: [], status: 1 },
+      { id: 'w2', propertyId: '2', propertyName: 'trade_amount', propertyDesc: '交易金额', fieldName: 'properties.amount', transformers: [
+        { operator: 'SCALE', params: { divisor: '100' } },
+        { operator: 'TO_DOUBLE', params: {} },
+      ], status: 1 },
+      { id: 'w3', propertyId: '3', propertyName: 'target_address', propertyDesc: '提现目标地址', fieldName: 'properties.toAddress', transformers: [], status: 1 },
+      { id: 'w4', propertyId: '4', propertyName: 'asset_type', propertyDesc: '币种', fieldName: 'properties.assetType', transformers: [], status: 1 },
+      { id: 'w5', propertyId: '5', propertyName: 'client_ip', propertyDesc: '客户端IP', fieldName: 'eventInfo.clientIp', transformers: [], status: 1 },
+      { id: 'w6', propertyId: '11', propertyName: 'request_id', propertyDesc: '请求唯一标识', fieldName: 'eventInfo.requestId', transformers: [], status: 1 },
     ];
 
     const MOCK_FEATURES = [
