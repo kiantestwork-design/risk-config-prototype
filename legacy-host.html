@@ -22,6 +22,14 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      var params = new URLSearchParams(window.location.search);
+      var targetPage = params.get('page');
+      if (targetPage) {
+        window.__LEGACY_PAGE__ = targetPage;
+        window.__LEGACY_MODE__ = true;
+      }
+    </script>
     <script src="./app.js"></script>
   </body>
 </html>
