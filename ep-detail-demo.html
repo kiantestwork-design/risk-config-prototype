@@ -1173,6 +1173,39 @@
         return result;
       });
 
+      // 变更集 state
+      const [changeset, setChangeset] = useState({
+        id: 'cs-001',
+        entryPointId: 'EP00010001',
+        status: 'DRAFT',
+        version: 3,
+        changes: [],
+        testResult: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      // 记录变更
+      const recordChange = (type, targetId, payload, sceneCode, dependsOn) => {
+        setChangeset(prev => {
+          const existingIdx = prev.changes.findIndex(c => c.type === type && c.targetId === targetId);
+          let newChanges;
+          if (existingIdx >= 0) {
+            newChanges = [...prev.changes];
+            newChanges[existingIdx] = { ...newChanges[existingIdx], payload, sceneCode, dependsOn };
+          } else {
+            newChanges = [...prev.changes, { type, targetId, payload, sceneCode, dependsOn }];
+          }
+          return {
+            ...prev,
+            changes: newChanges,
+            status: 'DRAFT',
+            testResult: null,
+            updatedAt: new Date().toISOString(),
+          };
+        });
+      };
+
       // 当前EP的场景定义
       const currentScenes = activeEP === 'EP00010001' ? SCENES_LOGIN : SCENES_WITHDRAW;
       const currentPayload = activeEP === 'EP00010001' ? SAMPLE_PAYLOAD_LOGIN : SAMPLE_PAYLOAD_WITHDRAW;
@@ -1244,6 +1277,35 @@
               </div>
             </div>
 
+            {/* 变更集状态栏 */}
+            <div className="bg-white rounded-lg border border-slate-200 shadow-sm px-6 py-3 mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-[rgba(0,0,0,0.65)]">当前版本: <span className="font-mono font-medium text-[rgba(0,0,0,0.88)]">v{changeset.version - 1}</span> (线上)</span>
+                {changeset.changes.length > 0 && (
+                  <>
+                    <span className="w-px h-4 bg-[#f0f0f0]"></span>
+                    <span className="text-sm">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs whitespace-nowrap ${changeset.status === 'DRAFT' ? 'text-[#faad14] bg-[#fffbe6] border border-[#faad1430]' : changeset.status === 'TESTED' ? 'text-[#52c41a] bg-[#f6ffed] border border-[#52c41a30]' : 'text-[#1890ff] bg-[#e6f7ff] border border-[#1890ff30]'}`}>
+                        {changeset.status === 'DRAFT' ? '草稿' : changeset.status === 'TESTED' ? '已测试' : changeset.status === 'READY' ? '待发布' : changeset.status}
+                      </span>
+                    </span>
+                    <span className="text-sm text-[rgba(0,0,0,0.65)]">{changeset.changes.length} 项变更</span>
+                  </>
+                )}
+                {changeset.changes.length === 0 && (
+                  <span className="text-sm text-[rgba(0,0,0,0.45)]">无待发布变更</span>
+                )}
+              </div>
+              {changeset.changes.length > 0 && (
+                <button
+                  className="h-8 px-4 text-sm rounded-md bg-[#1890ff] text-white border-none hover:bg-[#40a9ff] transition-colors"
+                  onClick={() => setActiveTab('changeset')}
+                >
+                  查看变更集
+                </button>
+              )}
+            </div>
+
             {/* EP 切换 */}
             <div className="flex items-center gap-2 mb-4">
               {Object.values(EP_LIST).map(ep => (
@@ -1273,6 +1335,16 @@
                 场景编排
                 {activeTab === 'scene' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1890ff]"></div>}
               </button>
+              {changeset.changes.length > 0 && (
+                <button
+                  className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${activeTab === 'changeset' ? 'text-[#1890ff]' : 'text-[rgba(0,0,0,0.65)] hover:text-[#1890ff]'}`}
+                  onClick={() => setActiveTab('changeset')}
+                >
+                  变更集
+                  <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] bg-[#ff4d4f] text-white">{changeset.changes.length}</span>
+                  {activeTab === 'changeset' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1890ff]"></div>}
+                </button>
+              )}
             </div>
 
             {/* Tab 1: 属性提取配置（display:none 切换，保持 state） */}
