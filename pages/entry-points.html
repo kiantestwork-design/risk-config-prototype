@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>接入点管理</title>
+  <script src="../tailwind-cdn.js"></script>
+  <script src="../vendor/react.production.min.js"></script>
+  <script src="../vendor/react-dom.production.min.js"></script>
+  <script src="../vendor/babel.min.js"></script>
+  <link rel="stylesheet" href="../index.css" />
+  <style>
+    body { background: #f0f2f5; color: rgba(0,0,0,0.88); font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; }
+    .confirm-popover {
+      position: absolute; right: 0; top: 100%; z-index: 10; margin-top: 4px;
+      background: white; border-radius: 8px; padding: 12px 16px; white-space: nowrap;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12), 0 9px 28px 8px rgba(0,0,0,0.05);
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>window.onerror=function(m,s,l,c,e){document.getElementById('root').innerHTML='<pre style="color:red;padding:20px;font-size:14px">JS Error:\n'+m+'\nLine: '+l+', Col: '+c+'\n'+(e&&e.stack||'')+'</pre>';}</script>
+  <script type="text/babel">
+    const { useState, useRef, useEffect, useCallback } = React;
+
+    /* ================================================================
+     *  Mock 数据
+     * ================================================================ */
+    // status: 1=启用, 2=停用; publishStatus: PUBLISHED=已发布, DRAFT=未发布
+    const MOCK_ENTRY_POINTS = [
+      { code: 'EP00010001', description: '登录风控',   status: 1, publishStatus: 'PUBLISHED', strategyCount: 3, updatedAt: '2026-04-08 14:32:10' },
+      { code: 'EP00000005', description: 'App提现',    status: 1, publishStatus: 'PUBLISHED', strategyCount: 2, updatedAt: '2026-04-07 09:15:44' },
+      { code: 'EP00020001', description: '注册风控',   status: 1, publishStatus: 'DRAFT',     strategyCount: 0, updatedAt: '2026-04-06 18:05:22' },
+      { code: 'EP00030001', description: '充值风控',   status: 2, publishStatus: 'PUBLISHED', strategyCount: 1, updatedAt: '2026-04-05 11:48:33' },
+      { code: 'EP00040001', description: '交易风控',   status: 1, publishStatus: 'DRAFT',     strategyCount: 0, updatedAt: '2026-04-04 16:20:55' },
+    ];
+
+    /* ================================================================
+     *  运行状态逻辑：
+     *    status=2(停用)               → 已停用（灰）
+     *    status=1 + PUBLISHED         → 运行中（绿）
+     *    status=1 + DRAFT             → 未发布（橙）
+     * ================================================================ */
+    function getRunStatus(ep) {
+      if (ep.status === 2) return 'disabled';
+      if (ep.publishStatus === 'PUBLISHED') return 'running';
+      return 'draft';
+    }
+
+    function RunStatusTag({ ep }) {
+      const s = getRunStatus(ep);
+      if (s === 'running') return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0"
+          style={{ background: '#f6ffed', color: '#52c41a', border: '1px solid #b7eb8f' }}>
+          <span className="w-1.5 h-1.5 rounded-full bg-[#52c41a] inline-block"></span>运行中
+        </span>
+      );
+      if (s === 'disabled') return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0"
+          style={{ background: '#f5f5f5', color: 'rgba(0,0,0,0.45)', border: '1px solid #d9d9d9' }}>
+          <span className="w-1.5 h-1.5 rounded-full bg-[rgba(0,0,0,0.25)] inline-block"></span>已停用
+        </span>
+      );
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0"
+          style={{ background: '#fff7e6', color: '#faad14', border: '1px solid #ffd591' }}>
+          <span className="w-1.5 h-1.5 rounded-full bg-[#faad14] inline-block"></span>未发布
+        </span>
+      );
+    }
+
+    /* ConfirmPopover — 内联确认气泡 */
+    function ConfirmPopover({ visible, onConfirm, onCancel, message }) {
+      if (!visible) return null;
+      return (
+        <div className="confirm-popover">
+          <div className="text-sm text-[rgba(0,0,0,0.88)] mb-2 flex items-center gap-1.5">
+            <svg className="w-4 h-4 text-[#faad14] flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            {message}
+          </div>
+          <div className="flex justify-end gap-2">
+            <button className="h-6 px-2 text-xs rounded border border-[#d9d9d9] bg-white text-[rgba(0,0,0,0.65)] hover:border-[#1890ff] hover:text-[#1890ff] transition-colors" onClick={onCancel}>取消</button>
+            <button className="h-6 px-2 text-xs rounded bg-[#ff4d4f] text-white border-none hover:bg-[#ff7875] transition-colors" onClick={onConfirm}>确认删除</button>
+          </div>
+        </div>
+      );
+    }
+
+    /* ================================================================
+     *  主应用
+     * ================================================================ */
+    function App() {
+      const [data, setData]           = useState(MOCK_ENTRY_POINTS);
+      const [search, setSearch]       = useState('');
+      const [statusFilter, setStatus] = useState('all');
+      const [deleteTarget, setDeleteTarget] = useState(null); // code of row being deleted
+
+      /* 筛选逻辑 */
+      const filtered = data.filter(ep => {
+        const matchSearch = !search ||
+          ep.code.toLowerCase().includes(search.toLowerCase()) ||
+          ep.description.toLowerCase().includes(search.toLowerCase());
+        const runStatus = getRunStatus(ep);
+        const matchStatus = statusFilter === 'all' ||
+          (statusFilter === 'running'  && runStatus === 'running') ||
+          (statusFilter === 'disabled' && runStatus === 'disabled') ||
+          (statusFilter === 'draft'    && runStatus === 'draft');
+        return matchSearch && matchStatus;
+      });
+
+      /* 导航到详情页 */
+      function openDetail(epCode) {
+        try {
+          if (window.parent && window.parent.openEntryPointDetail) {
+            window.parent.openEntryPointDetail(epCode);
+          } else {
+            window.location.href = '../ep-detail-demo.html?code=' + encodeURIComponent(epCode);
+          }
+        } catch(e) {
+          window.location.href = '../ep-detail-demo.html?code=' + encodeURIComponent(epCode);
+        }
+      }
+
+      /* 删除确认 */
+      function handleDelete(code) {
+        setData(prev => prev.filter(ep => ep.code !== code));
+        setDeleteTarget(null);
+      }
+
+      return (
+        <div className="p-6 max-w-[1600px] mx-auto">
+          {/* 顶部操作栏 */}
+          <div className="flex items-center gap-3 mb-4">
+            {/* 搜索框 */}
+            <div className="relative flex-shrink-0" style={{ width: 260 }}>
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[rgba(0,0,0,0.25)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                className="w-full h-8 pl-8 pr-3 border border-[#d9d9d9] rounded-md text-sm outline-none focus:border-[#1890ff] transition-colors bg-white"
+                placeholder="搜索编码或描述..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+
+            {/* 状态筛选下拉 */}
+            <select
+              className="h-8 pl-3 pr-7 border border-[#d9d9d9] rounded-md text-sm outline-none focus:border-[#1890ff] transition-colors bg-white text-[rgba(0,0,0,0.88)] appearance-none cursor-pointer"
+              style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(0,0,0,0.25)' stroke-width='2'%3E%3Cpath d='M19 9l-7 7-7-7'/%3E%3C/svg%3E\")", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', paddingRight: '28px' }}
+              value={statusFilter}
+              onChange={e => setStatus(e.target.value)}
+            >
+              <option value="all">全部状态</option>
+              <option value="running">运行中</option>
+              <option value="disabled">已停用</option>
+              <option value="draft">未发布</option>
+            </select>
+
+            {/* 右侧：新增按钮 */}
+            <div className="ml-auto">
+              <button
+                className="h-8 px-4 rounded-md text-sm font-medium text-white transition-colors"
+                style={{ background: '#1890ff' }}
+                onMouseEnter={e => e.currentTarget.style.background='#40a9ff'}
+                onMouseLeave={e => e.currentTarget.style.background='#1890ff'}
+                onClick={() => alert('新增接入点（功能开发中）')}
+              >
+                + 新增接入点
+              </button>
+            </div>
+          </div>
+
+          {/* 表格卡片 */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+            <table className="w-full" style={{ tableLayout: 'auto', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#fafafa', borderBottom: '1px solid #f0f0f0' }}>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]">接入点信息</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]" style={{ width: 100 }}>关联策略数</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]" style={{ width: 90 }}>运行状态</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-[rgba(0,0,0,0.65)]" style={{ width: 160 }}>更新时间</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-[rgba(0,0,0,0.65)]" style={{ width: 100 }}>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-10 text-center text-sm text-[rgba(0,0,0,0.25)]">暂无数据</td>
+                  </tr>
+                )}
+                {filtered.map((ep, idx) => (
+                  <tr key={ep.code}
+                    style={{ borderBottom: idx < filtered.length - 1 ? '1px solid #f0f0f0' : 'none' }}
+                    className="hover:bg-[#fafafa] transition-colors">
+
+                    {/* 接入点信息：编码+描述 */}
+                    <td className="px-3 py-3">
+                      <button
+                        className="text-sm font-medium text-[#1890ff] hover:text-[#40a9ff] transition-colors block text-left"
+                        onClick={() => openDetail(ep.code)}
+                      >
+                        {ep.code}
+                      </button>
+                      <span className="text-xs text-[rgba(0,0,0,0.45)] mt-0.5 block">{ep.description}</span>
+                    </td>
+
+                    {/* 关联策略数 */}
+                    <td className="px-3 py-3">
+                      <span className="text-sm text-[rgba(0,0,0,0.88)]">{ep.strategyCount}</span>
+                    </td>
+
+                    {/* 运行状态 */}
+                    <td className="px-3 py-3" style={{ width: 90 }}>
+                      <RunStatusTag ep={ep} />
+                    </td>
+
+                    {/* 更新时间 */}
+                    <td className="px-3 py-3">
+                      <span className="text-sm text-[rgba(0,0,0,0.65)]">{ep.updatedAt}</span>
+                    </td>
+
+                    {/* 操作列 */}
+                    <td className="px-3 py-3 text-center" style={{ width: 100 }}>
+                      <div className="flex items-center justify-center gap-2 relative">
+                        {/* 编辑 */}
+                        <button
+                          className="text-xs text-[#1890ff] hover:text-[#40a9ff] transition-colors"
+                          onClick={() => openDetail(ep.code)}
+                        >
+                          编辑
+                        </button>
+                        <span className="text-[rgba(0,0,0,0.15)]">|</span>
+                        {/* 删除（带确认气泡） */}
+                        <div className="relative">
+                          <button
+                            className="text-xs text-[#ff4d4f] hover:text-[#ff7875] transition-colors"
+                            onClick={() => setDeleteTarget(deleteTarget === ep.code ? null : ep.code)}
+                          >
+                            删除
+                          </button>
+                          <ConfirmPopover
+                            visible={deleteTarget === ep.code}
+                            message={`确定删除接入点「${ep.code}」吗？`}
+                            onConfirm={() => handleDelete(ep.code)}
+                            onCancel={() => setDeleteTarget(null)}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* 底部统计 */}
+            <div className="px-3 py-2 border-t border-[#f0f0f0] flex items-center justify-between">
+              <span className="text-xs text-[rgba(0,0,0,0.45)]">共 {filtered.length} 条记录</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* 点击气泡外部关闭 */
+    document.addEventListener('mousedown', function(e) {
+      if (!e.target.closest('.confirm-popover') && !e.target.closest('button')) {
+        // handled by individual button onClick
+      }
+    });
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
