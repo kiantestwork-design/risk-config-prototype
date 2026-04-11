@@ -9,9 +9,8 @@
 **Tech Stack:** React 18 UMD（本地 vendor/）、Babel standalone（本地 vendor/）、Tailwind CSS（已有本地 tailwind-cdn.js）、纯静态 HTML
 
 **验收标准：**
-- 断网状态下，双击 `index.html`，已迁移页面（接入点管理、标准属性字典）正常打开，不请求任何外网资源
-- 联网状态下，未迁移页面（特征管理、策略等）通过 legacy-host.html 正常显示
-- 压缩整个目录发给别人，解压后双击 `index.html`，已迁移页面离线可用，legacy 页面联网可用
+- 断网状态下，双击 `index.html`，所有页面正常打开（已迁移页面用本地 vendor/，legacy 页面的 app.js 已内联所有依赖）
+- 压缩整个目录发给别人，解压后双击 `index.html`，全部离线可用
 
 **当前 app.js 页面清单（13 个路由）：**
 
