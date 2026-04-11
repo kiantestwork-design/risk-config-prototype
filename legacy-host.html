@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>风控配置平台离线预览</title>
+    <script src="./tailwind-cdn.js"></script>
+    <link rel="stylesheet" href="./index.css" />
+    <style>
+      body { background: #f0f2f5; color: #0f172a; font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; }
+      #root { min-height: 100vh; }
+      .expand-section { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.3s ease; }
+      .expand-section.open { grid-template-rows: 1fr; }
+      .expand-inner { overflow: hidden; }
+      .confirm-popover {
+        position: absolute; right: 0; top: 100%; z-index: 10; margin-top: 4px;
+        background: white; border-radius: 8px; padding: 12px 16px; white-space: nowrap;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12), 0 9px 28px 8px rgba(0,0,0,0.05);
+      }
+      .editing-row { background: #fffbe6 !important; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="./app.js"></script>
+  </body>
+</html>
