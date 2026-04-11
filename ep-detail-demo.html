@@ -1373,7 +1373,7 @@
       const urlEP = new URLSearchParams(window.location.search).get('ep');
       const initEP = urlEP && EP_LIST[urlEP] ? urlEP : 'EP00010001';
       const [activeEP, setActiveEP] = useState(initEP);
-      const [activeTab, setActiveTab] = useState('extraction');
+      const [activeTab, setActiveTab] = useState('basic');
 
       // 提取配置 state
       const [extractions, setExtractions] = useState([...MOCK_EXTRACTIONS_LOGIN]);
@@ -1536,6 +1536,13 @@
             {/* Tab 切换 */}
             <div className="flex items-center gap-0 mb-4 border-b border-[#f0f0f0]">
               <button
+                className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${activeTab === 'basic' ? 'text-[#1890ff]' : 'text-[rgba(0,0,0,0.65)] hover:text-[#1890ff]'}`}
+                onClick={() => setActiveTab('basic')}
+              >
+                基础信息
+                {activeTab === 'basic' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1890ff]"></div>}
+              </button>
+              <button
                 className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${activeTab === 'extraction' ? 'text-[#1890ff]' : 'text-[rgba(0,0,0,0.65)] hover:text-[#1890ff]'}`}
                 onClick={() => setActiveTab('extraction')}
               >
@@ -1559,6 +1566,37 @@
                   {activeTab === 'changeset' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1890ff]"></div>}
                 </button>
               )}
+            </div>
+
+            {/* Tab 0: 基础信息 */}
+            <div style={{ display: activeTab === 'basic' ? 'block' : 'none' }}>
+              <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
+                <h3 className="text-sm font-medium text-[rgba(0,0,0,0.88)] mb-4">接入点基础信息</h3>
+                <div className="grid grid-cols-2 gap-6 max-w-[800px]">
+                  <div>
+                    <label className="block text-xs text-[rgba(0,0,0,0.45)] mb-1">接入点编码</label>
+                    <div className="text-sm font-mono text-[rgba(0,0,0,0.88)] bg-[#fafafa] px-3 py-2 rounded-md border border-[#f0f0f0]">{epInfo.code}</div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-[rgba(0,0,0,0.45)] mb-1">接入点名称</label>
+                    <div className="text-sm text-[rgba(0,0,0,0.88)] bg-[#fafafa] px-3 py-2 rounded-md border border-[#f0f0f0]">{epInfo.name}</div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-[rgba(0,0,0,0.45)] mb-1">描述</label>
+                    <div className="text-sm text-[rgba(0,0,0,0.88)] bg-[#fafafa] px-3 py-2 rounded-md border border-[#f0f0f0]">{epInfo.description}</div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-[rgba(0,0,0,0.45)] mb-1">运行状态</label>
+                    <div className="mt-1">{statusLabel(epInfo.status)}</div>
+                  </div>
+                </div>
+                <div className="mt-6 pt-4 border-t border-[#f0f0f0]">
+                  <h4 className="text-sm font-medium text-[rgba(0,0,0,0.88)] mb-3">示例报文</h4>
+                  <pre className="text-xs font-mono bg-[#fafafa] rounded-lg p-4 overflow-auto max-h-[400px] border border-[#f0f0f0]" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                    {JSON.stringify(currentPayload, null, 2)}
+                  </pre>
+                </div>
+              </div>
             </div>
 
             {/* Tab 1: 属性提取配置（display:none 切换，保持 state） */}
