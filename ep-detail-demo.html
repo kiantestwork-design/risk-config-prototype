@@ -732,7 +732,7 @@
     /* ================================================================
      *  Tab 1: 属性提取配置
      * ================================================================ */
-    function ExtractionCard({ extractions, setExtractions, payload, activeEP }) {
+    function ExtractionCard({ extractions, setExtractions, payload, activeEP, recordChange }) {
       const [addingNew, setAddingNew] = useState(false);
       const [modalExtId, setModalExtId] = useState(null);
       const [deleteConfirmId, setDeleteConfirmId] = useState(null);
@@ -784,12 +784,22 @@
           status: 1,
         };
         setExtractions([...extractions, newExt]);
+        if (recordChange) {
+          recordChange('EXTRACTION_ADD', newExt.id, {
+            propertyId: newForm.propertyId,
+            fieldName: newForm.fieldName,
+            transformers: [],
+          });
+        }
         setAddingNew(false);
         setNewForm({ ...emptyForm });
         setErrors({});
       };
 
       const handleDelete = (id) => {
+        if (recordChange) {
+          recordChange('EXTRACTION_DELETE', id, null);
+        }
         setExtractions(extractions.filter(e => e.id !== id));
         setDeleteConfirmId(null);
       };
@@ -798,7 +808,17 @@
         setExtractions(extractions.map(e =>
           e.id === modalExtId ? { ...e, fieldName, transformers } : e
         ));
+        if (recordChange) {
+          recordChange('EXTRACTION_MODIFY', modalExtId, { fieldName, transformers });
+        }
         setModalExtId(null);
+      };
+
+      const handleToggleStatus = (ext, enabled) => {
+        setExtractions(extractions.map(e => e.id === ext.id ? { ...e, status: enabled ? 1 : 0 } : e));
+        if (recordChange) {
+          recordChange('EXTRACTION_MODIFY', ext.id, { status: enabled ? 1 : 0 });
+        }
       };
 
       const renderForm = (form, setForm, onSave, onCancel, isEdit) => {
@@ -896,7 +916,7 @@
                         <td className="px-3 py-3 text-center">
                           <StatusToggle
                             enabled={ext.status === 1}
-                            onChange={(v) => setExtractions(extractions.map(e => e.id === ext.id ? { ...e, status: v ? 1 : 0 } : e))}
+                            onChange={(v) => handleToggleStatus(ext, v)}
                           />
                         </td>
                         <td className="px-3 py-3 text-center w-[100px]">
@@ -1354,6 +1374,7 @@
                 setExtractions={setExtractions}
                 payload={currentPayload}
                 activeEP={activeEP}
+                recordChange={recordChange}
               />
             </div>
 
