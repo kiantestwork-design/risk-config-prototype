@@ -1,6 +1,6 @@
 // ConditionExpressionEditor - 还原自 app.js Coe/Ooe + fz/Lz 组件
 // 支持递归条件组、AND/OR 逻辑切换、条件节点增删、只读模式
-import { useCallback } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import { Trash2, Layers } from 'lucide-react'
 
 const OPERATORS = [
@@ -252,12 +252,24 @@ function GroupNode({ group, level, onChange, onRemove, readOnly, isRoot }) {
 }
 
 export default function ConditionExpressionEditor({ value, onChange, readOnly = false, label = '条件表达式' }) {
+  // 用内部 state 维护 tree，避免每次 render 重新 parseValue 导致 genId() 生成新 ID、输入框重挂载
+  const [tree, setTree] = useState(() => parseValue(value))
+  const prevValueRef = useRef(value)
+
+  // 仅当外部 value 发生变化时（如切换历史版本）才重新解析
+  useEffect(() => {
+    if (value !== prevValueRef.current) {
+      prevValueRef.current = value
+      setTree(parseValue(value))
+    }
+  }, [value])
+
   const handleChange = useCallback((newTree) => {
+    setTree(newTree)
     onChange(toValue(newTree))
   }, [onChange])
 
-  // 用 key 来确保重新挂载时重新解析
-  const currentTree = parseValue(value)
+  const currentTree = tree
 
   if (readOnly && (!currentTree.children || currentTree.children.length === 0)) {
     return (
