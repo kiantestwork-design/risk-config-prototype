@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+body {
+  background: #f0f2f5;
+  color: rgba(0,0,0,0.88);
+  font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  margin: 0;
+}
+.expand-section { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.3s ease; }
+.expand-section.open { grid-template-rows: 1fr; }
+.expand-inner { overflow: hidden; }
+.confirm-popover {
+  position: absolute; right: 0; top: 100%; z-index: 10; margin-top: 4px;
+  background: white; border-radius: 8px; padding: 12px 16px; white-space: nowrap;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12), 0 9px 28px 8px rgba(0,0,0,0.05);
+}
+.editing-row { background: #fffbe6 !important; }

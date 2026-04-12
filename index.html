@@ -1,115 +1,12 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>风控配置平台</title>
-  <script src="./tailwind-cdn.js"></script>
-  <link rel="stylesheet" href="./index.css" />
-  <style>
-    body { margin: 0; font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; }
-    .menu-item { display: flex; align-items: center; padding: 8px 16px 8px 24px; color: rgba(255,255,255,0.65); font-size: 14px; cursor: pointer; transition: all 0.2s; text-decoration: none; }
-    .menu-item:hover { color: #fff; background: rgba(255,255,255,0.08); }
-    .menu-item.active { color: #fff; background: #1890ff; }
-    .menu-group { padding: 12px 16px 4px 16px; font-size: 12px; color: rgba(255,255,255,0.35); letter-spacing: 0.5px; }
-  </style>
-</head>
-<body class="bg-[#f0f2f5]">
-  <div style="display:flex; height:100vh;">
-    <!-- 侧边栏 -->
-    <div style="width:220px; background:#001529; flex-shrink:0; display:flex; flex-direction:column; overflow-y:auto;">
-      <div style="padding:16px 20px; color:#fff; font-size:16px; font-weight:600; border-bottom:1px solid rgba(255,255,255,0.1);">
-        风控配置平台
-      </div>
-      <nav id="menu"></nav>
-    </div>
-    <!-- 主内容区 -->
-    <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
-      <div style="height:48px; background:#fff; border-bottom:1px solid #f0f0f0; display:flex; align-items:center; padding:0 24px; flex-shrink:0;">
-        <span id="page-title" style="font-size:16px; font-weight:600; color:rgba(0,0,0,0.88);"></span>
-        <div style="margin-left:auto; display:flex; align-items:center; gap:12px;">
-          <span style="font-size:12px; background:#f6ffed; color:#52c41a; padding:2px 8px; border-radius:4px; border:1px solid #b7eb8f;">生产环境</span>
-          <span style="font-size:12px; color:rgba(0,0,0,0.45);">v2.5.0</span>
-        </div>
-      </div>
-      <iframe id="content-frame" style="flex:1; border:none; width:100%;" src="about:blank"></iframe>
-    </div>
-  </div>
-
-  <script>
-    var MENU = [
-      { group: '监控', items: [
-        { key: 'dashboard', label: '监控大盘', page: 'pages/dashboard.html' },
-      ]},
-      { group: '数据配置', items: [
-        { key: 'property-dictionary', label: '标准属性字典', page: 'pages/property-dictionary.html' },
-        { key: 'event-points', label: '接入点管理', page: 'pages/entry-points.html' },
-        { key: 'feature-list', label: '特征管理', page: 'pages/feature-list.html' },
-      ]},
-      { group: '决策配置', items: [
-        { key: 'activations', label: '策略管理', page: 'pages/activations.html' },
-        { key: 'rules', label: '规则管理', page: 'pages/rules.html' },
-      ]},
-      { group: '风控策略', items: [
-        { key: 'circuit-breakers', label: '服务熔断策略', page: 'pages/circuit-breakers.html' },
-        { key: 'guardrails', label: '业务护栏策略', page: 'pages/guardrails.html' },
-        { key: 'overrides', label: '手动干预管理', page: 'pages/overrides.html' },
-      ]},
-      { group: '发布管理', items: [
-        { key: 'release-candidates', label: '待发布清单', page: 'pages/release-candidates.html' },
-        { key: 'release-orders', label: '发布单列表', page: 'pages/release-orders.html' },
-      ]},
-      { group: '系统管理', items: [
-        { key: 'user-management', label: '用户管理', page: 'pages/user-management.html' },
-        { key: 'role-management', label: '角色管理', page: 'pages/role-management.html' },
-      ]},
-    ];
-
-    var activeKey = 'event-points';
-
-    function renderMenu() {
-      var nav = document.getElementById('menu');
-      nav.innerHTML = MENU.map(function(group) {
-        return '<div class="menu-group">' + group.group + '</div>' +
-          group.items.map(function(item) {
-            return '<a class="menu-item ' + (item.key === activeKey ? 'active' : '') + '"' +
-              ' data-key="' + item.key + '" data-page="' + item.page + '" data-label="' + item.label + '"' +
-              ' onclick="navigate(this)">' + item.label + '</a>';
-          }).join('');
-      }).join('');
-    }
-
-    function navigate(el) {
-      activeKey = el.dataset.key;
-      document.getElementById('content-frame').src = el.dataset.page;
-      document.getElementById('page-title').textContent = el.dataset.label;
-      renderMenu();
-    }
-
-    window.navigateTo = function(key, params) {
-      var allItems = MENU.reduce(function(acc, g) { return acc.concat(g.items); }, []);
-      var item = allItems.find(function(i) { return i.key === key; });
-      if (item) {
-        activeKey = key;
-        var url = item.page;
-        if (params) url += (url.indexOf('?') >= 0 ? '&' : '?') + new URLSearchParams(params).toString();
-        document.getElementById('content-frame').src = url;
-        document.getElementById('page-title').textContent = item.label;
-        renderMenu();
-      }
-    };
-
-    window.openEntryPointDetail = function(epCode) {
-      document.getElementById('content-frame').src = 'pages/entry-point-edit.html?ep=' + epCode;
-      document.getElementById('page-title').textContent = '接入点详情 - ' + epCode;
-    };
-
-    renderMenu();
-    var defaultItem = MENU.reduce(function(acc, g) { return acc.concat(g.items); }, []).find(function(i) { return i.key === activeKey; });
-    if (defaultItem) {
-      document.getElementById('content-frame').src = defaultItem.page;
-      document.getElementById('page-title').textContent = defaultItem.label;
-    }
-  </script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>风控配置平台</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>
