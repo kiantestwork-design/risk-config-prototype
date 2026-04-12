@@ -6,7 +6,7 @@
 
 **Architecture:** 在当前目录初始化 Vite + React，`src/` 目录存放 JSX 源码。App.jsx 作为壳层持有所有共享状态，通过 props 下发给页面组件。路由使用 HashRouter（唯一真源），菜单高亮由 useLocation 推导。每个页面组件通过读取 app.js 编译代码精确还原。
 
-**Tech Stack:** Vite, React 18, react-router-dom (HashRouter), Tailwind CSS, lucide-react v0.562.0
+**Tech Stack:** Vite, React 19（与 app.js bundle 内嵌版本 19.2.3 对齐，package.json 中钉死 `"react": "^19.2.3"`）, react-router-dom (HashRouter), Tailwind CSS, lucide-react v0.562.0
 
 **Spec:** `docs/superpowers/specs/2026-04-12-vite-react-migration-design.md`
 
@@ -36,9 +36,7 @@
 
 **Files:**
 - Create: `package.json`
-- Create: `vite.config.js`
-- Create: `tailwind.config.js`
-- Create: `postcss.config.js`
+- Create: `vite.config.js`（使用 `@tailwindcss/vite` 插件，不需要 tailwind.config.js 和 postcss.config.js）
 - Modify: `index.html`（改为 Vite 入口）
 - Create: `src/main.jsx`
 - Create: `src/App.jsx`（空壳）
@@ -51,11 +49,11 @@
 npm create vite@latest . -- --template react
 ```
 
-如果提示目录非空，选择忽略已有文件。然后安装依赖：
+如果提示目录非空，选择忽略已有文件。然后钉死 React 版本并安装依赖：
 
 ```bash
-npm install
-npm install react-router-dom lucide-react
+npm install react@^19.2.3 react-dom@^19.2.3
+npm install react-router-dom lucide-react@0.562.0
 npm install -D tailwindcss @tailwindcss/vite
 ```
 
@@ -252,12 +250,13 @@ sidebarOpen, docModalOpen, expandedMenus,
 releaseResultModal, userSelectorOpen
 ```
 
-**跨页面回调（全部从 dce 的函数定义还原）：**
+**跨页面回调（以 app.js dce 函数中的实际实现为准，spec 3.2 的命名仅供参考）：**
 ```
-onAddToDrafts, onCreateOrder, onUpdateOrder,
-onSavePolicies, onDeletePolicy, onDeleteOverride,
-onUpdateUsers, onUpdateRoles
+onAddToDrafts (I), onCreateOrder (C), onUpdateOrder (b),
+onSavePolicies (x), onDeletePolicy (v), onDeleteOverride (S),
+onUpdateUsers (setUM), onUpdateRoles (setRM)
 ```
+注：括号内为 app.js 中的混淆变量名，还原时以 dce 函数中的实际逻辑为准。
 
 **路由：** 使用 HashRouter + Routes，每个路由传入对应的 state 和回调 props。
 
@@ -373,8 +372,9 @@ Dashboard 页面包含：
 
 ```jsx
 import Dashboard from './pages/Dashboard'
-// 在 Routes 中：
-<Route path="/" element={<Dashboard />} />
+// 在 Routes 中（路径必须与 app.js 菜单 key 一致）：
+<Route path="/dashboard" element={<Dashboard />} />
+<Route path="/" element={<Navigate to="/dashboard" replace />} />
 ```
 
 - [ ] **Step 3: 对照验证**
@@ -440,19 +440,29 @@ git commit -m "feat: Dashboard页面还原"
 
 ---
 
-### Task 9: EntryPointList 页面
+### Task 9: EntryPointList + EntryPointEditor 页面
 
-**Files:** Create `src/pages/EntryPointList.jsx`
-**反编译源:** app.js offset 822759，变量名 `xz`，~43K
-**Props:** `{ onAddToDrafts }`
+**Files:**
+- Create `src/pages/EntryPointList.jsx`（还原 xz，列表 + 批量操作 + 筛选）
+- Create `src/pages/EntryPointEditor.jsx`（还原 gz，EntityEditorShell 编辑表单）
 
-- [ ] **Step 1: 还原 EntryPointList.jsx**
+**反编译源:**
+- xz: app.js offset 822759，~43K（列表视图 + 页面切换逻辑）
+- gz: app.js offset 813972，~9K（编辑表单 renderForm + extraSections）
 
-包含列表视图和详情视图（通过内部 state 切换 LIST/VIEW 模式）。详情视图使用 `EntityEditorShell` 渲染 `gz` 组件的 `renderForm` 和 `extraSections`。
+**Props:**
+- EntryPointList: `{ onAddToDrafts }`
+- EntryPointEditor: `{ item, initialMode, onBack, onSave }`（由 EntryPointList 在切换到 VIEW 模式时传入）
 
-注意：`xz` 内部引用了 `gz`（EntryPointEditor），在还原时需要把 gz 的编辑表单逻辑也包含进来（作为 EntityEditorShell 的 renderForm）。
+- [ ] **Step 1: 还原 EntryPointEditor.jsx**
 
-- [ ] **Step 2: 注册路由，对照验证，Commit**
+独立还原 gz 组件。包含 EntityEditorShell 的 `renderForm`（基本信息表单）和 `extraSections`（关联策略、关联规则表格）。Phase 1 中 extraSections 只包含原版的关联策略和关联规则，不包含新功能。
+
+- [ ] **Step 2: 还原 EntryPointList.jsx**
+
+还原 xz 组件。内部通过 state 切换 LIST/VIEW 模式。VIEW 模式渲染 `<EntryPointEditor />`。列表模式包含搜索筛选、表格、批量操作。
+
+- [ ] **Step 3: 注册路由，对照验证，Commit**
 
 ---
 
@@ -559,10 +569,10 @@ git commit -m "feat: Dashboard页面还原"
 
 | 页面 | 路由 | 检查项 |
 |------|------|--------|
-| 监控大盘 | `/#/` | 4 个统计卡片、最近操作表 |
+| 监控大盘 | `/#/dashboard` | 4 个统计卡片、最近操作表 |
 | 标准属性字典 | `/#/property-dictionary` | 搜索、筛选、表格、编辑、删除 |
-| 接入点管理 | `/#/entry-points` | 列表、编辑（EntityEditorShell）、批量操作 |
-| 特征管理 | `/#/features` | 列表、编辑、状态切换 |
+| 接入点管理 | `/#/event-points` | 列表、编辑（EntityEditorShell）、批量操作 |
+| 特征管理 | `/#/feature-list` | 列表、编辑、状态切换 |
 | 策略管理 | `/#/activations` | 列表、编辑、关联规则 |
 | 规则管理 | `/#/rules` | 列表、编辑、评分配置 |
 | 服务熔断 | `/#/circuit-breakers` | 策略列表、编辑 |
@@ -570,8 +580,8 @@ git commit -m "feat: Dashboard页面还原"
 | 手动干预 | `/#/overrides` | 警告横幅、干预列表 |
 | 待发布清单 | `/#/release-candidates` | 草稿列表、创建发布单 |
 | 发布单列表 | `/#/release-orders` | 发布单列表、详情、审批/发布/回滚 |
-| 用户管理 | `/#/users` | 用户列表、编辑、角色关联 |
-| 角色管理 | `/#/roles` | 角色列表、权限配置 |
+| 用户管理 | `/#/user-management` | 用户列表、编辑、角色关联 |
+| 角色管理 | `/#/role-management` | 角色列表、权限配置 |
 
 - [ ] **Step 2: 验证跨页面联动**
 
