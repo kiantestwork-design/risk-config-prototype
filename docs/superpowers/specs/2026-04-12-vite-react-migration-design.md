@@ -58,7 +58,10 @@
 | onAddToDrafts(draft) | EntryPointList, FeatureList, ActivationList, RuleList | 向 drafts 数组追加条目 |
 | onCreateOrder(order) | ReleaseCandidates | 创建发布单，追加到 orders，清空对应 drafts |
 | onUpdateOrder(id, updates) | ReleaseOrders | 更新发布单状态（审批/发布/回滚） |
-| onSaveEntity(entity) | EntityEditorShell 内的所有编辑页 | 更新对应实体数组（entryPoints/features 等） |
+| onSaveEntryPoint(ep) | EntryPointEditor | 更新 entryPoints 数组 |
+| onSaveFeature(ft) | FeatureList（编辑视图） | 更新 features 数组 |
+| onSaveActivation(act) | ActivationList（编辑视图） | 更新 activations 数组 |
+| onSaveRule(rule) | RuleList（编辑视图） | 更新 rules 数组 |
 | onUpdateUsers(users) | UserManagement | 更新用户列表 |
 | onUpdateRoles(roles) | RoleManagement | 更新角色列表 |
 

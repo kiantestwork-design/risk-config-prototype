@@ -242,21 +242,30 @@ App.jsx 需要精确还原以下内容（从 dce 函数分析得到）：
 - 内容区（flex-1, overflow-auto, p-6, max-w-[1600px]）：路由页面渲染
 - 移动端遮罩（侧边栏展开时）
 
-**顶层 state（全部从 dce 的 useState 还原）：**
+**顶层 state（全部从 dce 的 useState 还原，必须与 spec 3.1 完全一致）：**
 ```
 entryPoints, features, activations, rules, policies, overrides,
 drafts, orders, users, roles, currentUser,
 sidebarOpen, docModalOpen, expandedMenus,
-releaseResultModal, userSelectorOpen
+releaseResultModal, currentOrderDetail, userSelectorOpen
 ```
 
-**跨页面回调（以 app.js dce 函数中的实际实现为准，spec 3.2 的命名仅供参考）：**
+**跨页面回调（以 app.js dce 函数中的实际实现为准）：**
 ```
-onAddToDrafts (I), onCreateOrder (C), onUpdateOrder (b),
-onSavePolicies (x), onDeletePolicy (v), onDeleteOverride (S),
-onUpdateUsers (setUM), onUpdateRoles (setRM)
+onAddToDrafts (I)          — 加入待发布清单
+onCreateOrder (C)          — 创建发布单
+onUpdateOrder (b)          — 更新发布单状态
+onSavePolicies (x)         — 保存熔断/护栏策略
+onDeletePolicy (v)         — 删除熔断/护栏策略
+onDeleteOverride (S)       — 删除手动干预
+onUpdateUsers (setUM)      — 更新用户列表
+onUpdateRoles (setRM)      — 更新角色列表
+onSaveEntryPoint           — 保存接入点（更新 entryPoints 数组，从 dce 中 k 函数还原）
+onSaveFeature              — 保存特征（更新 features 数组，模式同上）
+onSaveActivation           — 保存策略（更新 activations 数组）
+onSaveRule                 — 保存规则（更新 rules 数组）
 ```
-注：括号内为 app.js 中的混淆变量名，还原时以 dce 函数中的实际逻辑为准。
+注：括号内为 app.js 中的混淆变量名。onSaveEntryPoint/Feature/Activation/Rule 拆开实现（不用通用 onSaveEntity），因为各页面的保存逻辑不同。
 
 **路由：** 使用 HashRouter + Routes，每个路由传入对应的 state 和回调 props。
 
