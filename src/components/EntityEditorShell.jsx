@@ -173,10 +173,10 @@ export default function EntityEditorShell({ entityName, item, isNew, fields, onS
   }, [mode, displayed.id, guardNav])
 
   const changeNoteEl = mode === 'edit' ? (
-    <div className="border-t border-slate-200 pt-6 mt-6">
-      <label className="block text-sm font-semibold text-slate-800 mb-2">版本说明</label>
+    <div className="border-t border-[#f0f0f0] pt-6 mt-6">
+      <label className="block text-sm font-semibold text-[rgba(0,0,0,0.88)] mb-2">版本说明</label>
       <textarea
-        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 min-h-[80px]"
+        className="w-full rounded-md border border-[#d9d9d9] px-3 py-2 text-sm focus:border-[#1890ff] focus:outline-none focus:ring-1 focus:ring-[#1890ff] min-h-[80px]"
         placeholder="简要描述本次变更的内容或原因..."
         value={changeNote}
         onChange={e => setChangeNote(e.target.value)}
@@ -187,39 +187,39 @@ export default function EntityEditorShell({ entityName, item, isNew, fields, onS
   return (
     <div className="space-y-6 animate-in slide-in-from-right duration-300">
       {/* 头部 */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between border-b border-[#f0f0f0] pb-4 mb-4">
         <div className="flex items-center space-x-4">
-          <button onClick={handleBack} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500">
+          <button onClick={handleBack} className="p-2 hover:bg-[#f5f5f5] rounded-full transition-colors text-[rgba(0,0,0,0.45)]">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-3">
+            <h2 className="text-base font-semibold text-[rgba(0,0,0,0.88)] flex items-center gap-3">
               {mode === 'edit' && isNew ? '新建' + entityName : (
                 <span className="font-mono">{displayed.name || displayed.eventPoint || displayed.id || entityName}</span>
               )}
               {mode === 'edit' && (
-                <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded text-xs border border-slate-200 flex items-center">
+                <span className="bg-[#f5f5f5] text-[rgba(0,0,0,0.45)] px-2 py-0.5 rounded text-xs border border-[#d9d9d9] flex items-center">
                   <GitBranch className="w-3 h-3 mr-1" />编辑中
                 </span>
               )}
             </h2>
             {mode !== 'edit' && displayed.description && (
-              <div className="text-sm text-slate-500 mt-0.5">{displayed.description}</div>
+              <div className="text-sm text-[rgba(0,0,0,0.45)] mt-0.5">{displayed.description}</div>
             )}
           </div>
         </div>
         <div className="flex gap-3">
           {mode === 'edit' ? (
             <>
-              <button type="button" onClick={handleCancel} className="px-5 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors">
+              <button type="button" onClick={handleCancel} className="px-5 py-2 text-sm font-medium text-[rgba(0,0,0,0.88)] bg-white border border-[#d9d9d9] rounded hover:border-[#1890ff] hover:text-[#1890ff] transition-all">
                 取消
               </button>
-              <button type="button" onClick={handleSaveClick} className="flex items-center px-5 py-2 text-sm font-bold text-white bg-indigo-600 border border-transparent rounded hover:bg-indigo-700 shadow-sm transition-colors">
+              <button type="button" onClick={handleSaveClick} className="flex items-center px-5 py-2 text-sm font-bold text-white bg-[#1890ff] border border-transparent rounded hover:bg-[#40a9ff] shadow-sm transition-all">
                 <Save className="w-4 h-4 mr-2" />保存
               </button>
             </>
           ) : (
-            <button onClick={handleEdit} className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors shadow-sm font-medium">
+            <button onClick={handleEdit} className="flex items-center px-4 py-2 bg-[#1890ff] text-white rounded hover:bg-[#40a9ff] transition-all shadow-sm font-medium">
               <SquarePen className="w-4 h-4 mr-2" />编辑
             </button>
           )}
@@ -233,11 +233,11 @@ export default function EntityEditorShell({ entityName, item, isNew, fields, onS
           {extraSections && extraSections({ data: mode === 'edit' ? edited : displayed, mode })}
         </div>
         {/* 版本历史面板 */}
-        {versions && versions.length > 0 && !isNew && (
-          <div className="w-[260px] shrink-0 border-l border-slate-200 pl-6">
+        {!isNew && (
+          <div className="w-[260px] shrink-0 border-l border-[#f0f0f0] pl-6">
             <div className="sticky top-6">
-              <h3 className="font-semibold text-slate-900 flex items-center gap-2 mb-4">
-                <History className="w-4 h-4 text-slate-500" />历史版本
+              <h3 className="text-sm font-semibold text-[rgba(0,0,0,0.88)] flex items-center gap-2 mb-4">
+                <History className="w-4 h-4 text-[rgba(0,0,0,0.45)]" />历史版本
               </h3>
               <VersionHistoryPanel versions={versions} selectedVersionId={selectedVersion} onSelectVersion={handleLoadVersion} />
             </div>
