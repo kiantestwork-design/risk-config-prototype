@@ -18,7 +18,7 @@
 | 决策 | 选择 | 原因 |
 |------|------|------|
 | 构建工具 | Vite | 快速，零配置 React 支持 |
-| 路由 | react-router-dom HashRouter | `npx serve dist` 可直接使用 |
+| 路由 | react-router-dom HashRouter（唯一真源） | `npx serve dist` 可直接使用。**不维护独立的 currentPage state**，当前页面完全由 router location 推导（`useLocation()` + 菜单 key 映射）。菜单高亮、页面渲染、浏览器前进/后退全部由 router 驱动。 |
 | CSS | Tailwind CSS | 与原版一致 |
 | 图标 | lucide-react | 原版使用 Lucide 图标 |
 | 状态管理 | App 顶层 useState + props 下发 | 与原版一致，关键共享状态由 App 持有（见 3.1） |
@@ -33,7 +33,6 @@
 
 | 状态 | 类型 | 消费者（页面） |
 |------|------|-------------|
-| currentPage | string | 所有页面（路由） |
 | entryPoints | array | EntryPointList, EntryPointEditor, ActivationList |
 | features | array | FeatureList, EntryPointEditor |
 | activations | array | ActivationList, ReleaseCandidates |
@@ -47,6 +46,8 @@
 | currentUser | object | App（权限判断）、侧边栏（用户切换） |
 | sidebarOpen | boolean | App 布局（移动端菜单） |
 | docModalOpen | boolean | App（文档弹窗） |
+| releaseResultModal | object `{isOpen, type, title, subTitle}` | ReleaseOrders（发布单操作成功/失败弹窗，跨页跳转时需保留） |
+| currentOrderDetail | object / null | ReleaseOrders（当前查看/编辑的发布单，从列表点进详情时设置） |
 
 ### 3.2 跨页面回调链路
 
@@ -104,7 +105,7 @@ risk-config-prototype/
 │   ├── pages/
 │   │   ├── Dashboard.jsx            ← 还原 ez
 │   │   ├── EntryPointList.jsx       ← 还原 xz（列表 + 批量操作 + 筛选）
-│   │   ├── EntryPointEditor.jsx     ← 还原 gz + 集成新功能
+│   │   ├── EntryPointEditor.jsx     ← Phase 1: 只还原 gz；Phase 2: 再接入 features/ 的 extraSections
 │   │   ├── PropertyDictionary.jsx   ← 还原 PropertyDictionaryPage
 │   │   ├── FeatureList.jsx          ← 还原 hz
 │   │   ├── ActivationList.jsx       ← 还原 bz
@@ -194,9 +195,11 @@ app.js 中的混淆变量名与实际模块的对应关系：
 bundled 的 49 个图标文件列表（从 app.js 注释中提取，可作为查找范围）：
 `activity, archive, arrow-left, arrow-right, bell, book-open, brackets, calendar, check, chevron-down, chevron-right, circle-alert, circle-check-big, circle-check, circle-play, circle-stop, circle-x, clock, database, eye, file-braces, file-text, funnel, git-branch, globe, grip-vertical, history, layers, layout-dashboard, list, loader-circle, menu, message-square, play, plus, rocket, save, search, settings, shield-alert, shield-check, shield, shopping-cart, square-pen, target, triangle-alert, user, x, zap`
 
-## 5. 新功能集成
+## 5. 新功能集成（仅 Phase 2，Phase 1 parity 验收通过后才开始）
 
-在 `EntryPointEditor.jsx` 中，`EntityEditorShell` 的 `extraSections` prop 增加三个区域：
+Phase 1 中 `EntryPointEditor.jsx` 只还原 gz 组件原有的 extraSections（关联策略、关联规则表格）。
+
+Phase 2 在 `EntryPointEditor.jsx` 的 `extraSections` prop 中**追加**三个区域：
 
 1. **属性提取配置**（ExtractionCard + DataFlowVisualization）
 2. **场景编排**（SceneCard × 3 个场景阶段）
