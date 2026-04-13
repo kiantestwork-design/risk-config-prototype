@@ -190,6 +190,16 @@ function AppInner() {
     setEntryPoints(prev => prev.filter(ep => !ids.includes(ep.id)))
   }
 
+  const onDeleteActivation = (id) => {
+    setActivations(prev => prev.filter(a => a.id !== id))
+  }
+  const onBatchUpdateActivations = (ids, changes) => {
+    setActivations(prev => prev.map(a => ids.includes(a.id) ? { ...a, ...changes } : a))
+  }
+  const onBatchDeleteActivations = (ids) => {
+    setActivations(prev => prev.filter(a => !ids.includes(a.id)))
+  }
+
   // 菜单导航
   const handleMenuClick = (item) => {
     if (item.children) {
@@ -415,7 +425,7 @@ function AppInner() {
                 <Route path="/property-dictionary" element={<PropertyDictionary />} />
                 <Route path="/event-points" element={<EntryPointList entryPoints={entryPoints} onSaveEntryPoint={onSaveEntryPoint} onDeleteEntryPoint={onDeleteEntryPoint} onBatchUpdateEntryPoints={onBatchUpdateEntryPoints} onBatchDeleteEntryPoints={onBatchDeleteEntryPoints} onAddToDrafts={onAddToDrafts} activations={activations} properties={properties} features={features} extractions={extractions} sceneFeatures={sceneFeatures} onSaveExtractions={onSaveExtractions} onSaveSceneFeatures={onSaveSceneFeatures} />} />
                 <Route path="/feature-list" element={<FeatureList features={features} onSaveFeature={onSaveFeature} onAddToDrafts={onAddToDrafts} entryPoints={entryPoints} />} />
-                <Route path="/activations" element={<ActivationList activations={activations} onSaveActivation={onSaveActivation} onAddToDrafts={onAddToDrafts} entryPoints={entryPoints} rules={rules} />} />
+                <Route path="/activations" element={<ActivationList activations={activations} onSaveActivation={onSaveActivation} onDeleteActivation={onDeleteActivation} onBatchUpdateActivations={onBatchUpdateActivations} onBatchDeleteActivations={onBatchDeleteActivations} onAddToDrafts={onAddToDrafts} entryPoints={entryPoints} rules={rules} />} />
                 <Route path="/rules" element={<RuleList rules={rules} onSaveRule={onSaveRule} onAddToDrafts={onAddToDrafts} activations={activations} />} />
                 <Route path="/circuit-breakers" element={<PolicyManager type="CIRCUIT_BREAKER" policies={policies} onSavePolicies={onSavePolicies} onDeletePolicy={onDeletePolicy} />} />
                 <Route path="/guardrails" element={<PolicyManager type="GUARDRAIL" policies={policies} onSavePolicies={onSavePolicies} onDeletePolicy={onDeletePolicy} />} />
