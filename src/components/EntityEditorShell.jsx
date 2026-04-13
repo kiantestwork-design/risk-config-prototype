@@ -100,7 +100,7 @@ function VersionHistoryPanel({ versions, selectedVersionId, onSelectVersion }) {
 //   renderForm  - 自定义表单渲染 fn({data, onChange, mode, changeNoteEl}) => JSX
 //   extraSections - 额外分区渲染 fn({data, mode}) => JSX（可选）
 //   initialMode - 初始模式（'view' | 'edit'）
-export default function EntityEditorShell({ entityName, item, isNew, fields, onSave, onBack, versions = [], renderForm, extraSections, initialMode }) {
+export default function EntityEditorShell({ entityName, item, isNew, fields, onSave, onBack, versions = [], renderForm, extraSections, initialMode, headerBanner, showDraftPublish, onSubmitReady, extraDirtyCheck }) {
   const _init = item || (fields ? fields.reduce((acc, f) => ({ ...acc, [f.key]: f.defaultValue || '' }), {}) : {})
   const [mode, setMode] = useState(initialMode || (isNew ? 'edit' : 'view'))
   const [displayed, setDisplayed] = useState(_init)
@@ -108,10 +108,15 @@ export default function EntityEditorShell({ entityName, item, isNew, fields, onS
   const baseline = useRef(isNew || initialMode === 'edit' ? JSON.stringify(_init) : '')
   const [selectedVersion, setSelectedVersion] = useState(null)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [confirmAction, setConfirmAction] = useState('save') // 'save' | 'draft' | 'ready'
   const [pendingNav, setPendingNav] = useState(null)
   const [changeNote, setChangeNote] = useState(isNew ? '初始创建' : '')
 
-  const isDirty = useCallback(() => JSON.stringify(edited) !== baseline.current, [edited])
+  const isDirty = useCallback(() => {
+    if (JSON.stringify(edited) !== baseline.current) return true
+    if (extraDirtyCheck && extraDirtyCheck()) return true
+    return false
+  }, [edited, extraDirtyCheck])
 
   const onChange = useCallback((key, value) => {
     setEdited(prev => ({ ...prev, [key]: value }))
@@ -139,7 +144,7 @@ export default function EntityEditorShell({ entityName, item, isNew, fields, onS
     mode === 'edit' ? guardNav(onBack) : onBack()
   }, [mode, guardNav, onBack])
 
-  const handleSaveClick = useCallback(() => {
+  const handleSaveClick = useCallback((action = 'save') => {
     if (fields) {
       for (const f of fields) {
         if (f.required && !String(edited[f.key] || '').trim()) {
@@ -147,20 +152,32 @@ export default function EntityEditorShell({ entityName, item, isNew, fields, onS
         }
       }
     }
+    setConfirmAction(action)
     setShowConfirm(true)
   }, [edited, fields])
 
   const doSave = useCallback(() => {
     const data = { ...edited, updateAt: new Date().toISOString().replace('T', ' ').slice(0, 19) }
     if (changeNote) data._changeNote = changeNote
-    const saved = onSave(data)
-    if (saved) setDisplayed(saved); else setDisplayed(data)
-    setShowConfirm(false)
-    showToast({ type: 'success', message: entityName + (isNew ? '创建成功' : '保存成功'), description: entityName + '已成功' + (isNew ? '创建' : '保存') + '。' })
-    baseline.current = JSON.stringify(saved || data)
-    setChangeNote('')
-    if (!isNew) setMode('view')
-  }, [edited, onSave, entityName, isNew, changeNote])
+    if (confirmAction === 'ready' && onSubmitReady) {
+      data.lifecycleState = 'READY'
+      const saved = onSubmitReady(data)
+      if (saved) setDisplayed(saved); else setDisplayed(data)
+      setShowConfirm(false)
+      showToast({ type: 'success', message: entityName + '已提交待发布', description: entityName + '已成功提交至待发布清单。' })
+      baseline.current = JSON.stringify(saved || data)
+      setChangeNote('')
+      if (!isNew) setMode('view')
+    } else {
+      const saved = onSave(data)
+      if (saved) setDisplayed(saved); else setDisplayed(data)
+      setShowConfirm(false)
+      showToast({ type: 'success', message: entityName + (isNew ? '创建成功' : '保存成功'), description: entityName + '已成功' + (isNew ? '创建' : '保存') + '。' })
+      baseline.current = JSON.stringify(saved || data)
+      setChangeNote('')
+      if (!isNew) setMode('view')
+    }
+  }, [edited, onSave, onSubmitReady, entityName, isNew, changeNote, confirmAction])
 
   const handleLoadVersion = useCallback((v) => {
     const fn = () => {
@@ -214,9 +231,20 @@ export default function EntityEditorShell({ entityName, item, isNew, fields, onS
               <button type="button" onClick={handleCancel} className="px-5 py-2 text-sm font-medium text-[rgba(0,0,0,0.88)] bg-white border border-[#d9d9d9] rounded hover:border-[#1890ff] hover:text-[#1890ff] transition-all">
                 取消
               </button>
-              <button type="button" onClick={handleSaveClick} className="flex items-center px-5 py-2 text-sm font-bold text-white bg-[#1890ff] border border-transparent rounded hover:bg-[#40a9ff] shadow-sm transition-all">
-                <Save className="w-4 h-4 mr-2" />保存
-              </button>
+              {showDraftPublish ? (
+                <>
+                  <button type="button" onClick={() => handleSaveClick('draft')} className="flex items-center px-5 py-2 text-sm font-medium text-[rgba(0,0,0,0.88)] bg-white border border-[#d9d9d9] rounded hover:border-[#1890ff] hover:text-[#1890ff] transition-all">
+                    <Save className="w-4 h-4 mr-2" />保存草稿
+                  </button>
+                  <button type="button" onClick={() => handleSaveClick('ready')} className="flex items-center px-5 py-2 text-sm font-bold text-white bg-[#1890ff] border border-transparent rounded hover:bg-[#40a9ff] shadow-sm transition-all">
+                    <Save className="w-4 h-4 mr-2" />提交待发布
+                  </button>
+                </>
+              ) : (
+                <button type="button" onClick={() => handleSaveClick('save')} className="flex items-center px-5 py-2 text-sm font-bold text-white bg-[#1890ff] border border-transparent rounded hover:bg-[#40a9ff] shadow-sm transition-all">
+                  <Save className="w-4 h-4 mr-2" />保存
+                </button>
+              )}
             </>
           ) : (
             <button onClick={handleEdit} className="flex items-center px-4 py-2 bg-[#1890ff] text-white rounded hover:bg-[#40a9ff] transition-all shadow-sm font-medium">
@@ -225,6 +253,9 @@ export default function EntityEditorShell({ entityName, item, isNew, fields, onS
           )}
         </div>
       </div>
+
+      {/* 头部横幅提示 */}
+      {headerBanner}
 
       {/* 主体 */}
       <div className="flex gap-6">
@@ -259,8 +290,8 @@ export default function EntityEditorShell({ entityName, item, isNew, fields, onS
       {/* 保存确认弹框 */}
       <AntdConfirmModal
         visible={showConfirm}
-        title="确认保存"
-        content={`确定要保存对该${entityName}的所有更改吗？`}
+        title={confirmAction === 'ready' ? '确认提交待发布' : '确认保存'}
+        content={confirmAction === 'ready' ? `确定要将该${entityName}提交至待发布清单吗？` : `确定要保存对该${entityName}的所有更改吗？`}
         onOk={doSave}
         onCancel={() => setShowConfirm(false)}
       />
