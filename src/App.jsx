@@ -18,7 +18,22 @@ import { MOCK_ENTRY_POINTS } from './config/mock/entry-points'
 import { MOCK_FEATURES } from './config/mock/features'
 import { MOCK_ACTIVATIONS } from './config/mock/activations'
 import { MOCK_RULES } from './config/mock/rules'
+import { MOCK_EXTRACTIONS } from './config/mock/extractions'
+import { MOCK_SCENE_FEATURES } from './config/mock/scene-features'
+import { MOCK_PROPERTIES } from './config/mock/properties'
 import { AntdToastContainer } from './components/Toast'
+import Dashboard from './pages/Dashboard'
+import PropertyDictionary from './pages/PropertyDictionary'
+import EntryPointList from './pages/EntryPointList'
+import FeatureList from './pages/FeatureList'
+import ActivationList from './pages/ActivationList'
+import RuleList from './pages/RuleList'
+import PolicyManager from './pages/PolicyManager'
+import Overrides from './pages/Overrides'
+import ReleaseCandidates from './pages/ReleaseCandidates'
+import ReleaseOrders from './pages/ReleaseOrders'
+import UserManagement from './pages/UserManagement'
+import RoleManagement from './pages/RoleManagement'
 
 // 图标名称 → lucide-react 组件映射
 const ICON_MAP = {
@@ -81,6 +96,9 @@ function AppInner() {
   const [features, setFeatures] = useState(MOCK_FEATURES)
   const [activations, setActivations] = useState(MOCK_ACTIVATIONS)
   const [rules, setRules] = useState(MOCK_RULES)
+  const [extractions, setExtractions] = useState(MOCK_EXTRACTIONS)
+  const [sceneFeatures, setSceneFeatures] = useState(MOCK_SCENE_FEATURES)
+  const [properties] = useState(MOCK_PROPERTIES)
 
   // 权限检查
   const hasPerm = (perm) => {
@@ -107,6 +125,9 @@ function AppInner() {
       setOverrides(prev => prev.filter(o => o.id !== id))
     }
   }
+  const onAddOverride = (ov) => {
+    setOverrides(prev => [ov, ...prev])
+  }
   const onCreateOrder = (order) => {
     setOrders(prev => [order, ...prev])
     setReleaseResultModal({ isOpen: true, order })
@@ -115,8 +136,12 @@ function AppInner() {
     setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o))
   }
   const onAddToDrafts = (draft) => {
-    setDrafts(prev => prev.some(d => d.type === draft.type && d.targetId.toString() === draft.targetId.toString())
-      ? prev : [draft, ...prev])
+    const exists = drafts.some(d => d.type === draft.type && d.targetId.toString() === draft.targetId.toString())
+    if (exists) {
+      alert(`【${draft.targetName}】已在待发布清单中，无需重复添加`)
+      return
+    }
+    setDrafts(prev => [draft, ...prev])
     alert(`已将【${draft.targetName}】加入待发布清单`)
   }
   const onSaveEntryPoint = (ep) => {
@@ -146,6 +171,23 @@ function AppInner() {
       if (idx >= 0) { const next = [...prev]; next[idx] = rule; return next }
       return [...prev, rule]
     })
+  }
+
+  const onSaveExtractions = (epCode, list) => {
+    setExtractions(prev => ({ ...prev, [epCode]: list }))
+  }
+  const onSaveSceneFeatures = (epCode, scenes) => {
+    setSceneFeatures(prev => ({ ...prev, [epCode]: scenes }))
+  }
+
+  const onDeleteEntryPoint = (id) => {
+    setEntryPoints(prev => prev.filter(ep => ep.id !== id))
+  }
+  const onBatchUpdateEntryPoints = (ids, changes) => {
+    setEntryPoints(prev => prev.map(ep => ids.includes(ep.id) ? { ...ep, ...changes } : ep))
+  }
+  const onBatchDeleteEntryPoints = (ids) => {
+    setEntryPoints(prev => prev.filter(ep => !ids.includes(ep.id)))
   }
 
   // 菜单导航
@@ -369,19 +411,19 @@ function AppInner() {
             <div className="animate-in fade-in duration-300 slide-in-from-bottom-2">
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<PlaceholderPage name="Dashboard" />} />
-                <Route path="/property-dictionary" element={<PlaceholderPage name="PropertyDictionary" />} />
-                <Route path="/event-points" element={<PlaceholderPage name="EntryPointList" />} />
-                <Route path="/feature-list" element={<PlaceholderPage name="FeatureList" />} />
-                <Route path="/activations" element={<PlaceholderPage name="ActivationList" />} />
-                <Route path="/rules" element={<PlaceholderPage name="RuleList" />} />
-                <Route path="/circuit-breakers" element={<PlaceholderPage name="PolicyManager(CIRCUIT_BREAKER)" />} />
-                <Route path="/guardrails" element={<PlaceholderPage name="PolicyManager(GUARDRAIL)" />} />
-                <Route path="/overrides" element={<PlaceholderPage name="Overrides" />} />
-                <Route path="/release-candidates" element={<PlaceholderPage name="ReleaseCandidates" />} />
-                <Route path="/release-orders" element={<PlaceholderPage name="ReleaseOrders" />} />
-                <Route path="/user-management" element={<PlaceholderPage name="UserManagement" />} />
-                <Route path="/role-management" element={<PlaceholderPage name="RoleManagement" />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/property-dictionary" element={<PropertyDictionary />} />
+                <Route path="/event-points" element={<EntryPointList entryPoints={entryPoints} onSaveEntryPoint={onSaveEntryPoint} onDeleteEntryPoint={onDeleteEntryPoint} onBatchUpdateEntryPoints={onBatchUpdateEntryPoints} onBatchDeleteEntryPoints={onBatchDeleteEntryPoints} onAddToDrafts={onAddToDrafts} activations={activations} properties={properties} features={features} extractions={extractions} sceneFeatures={sceneFeatures} onSaveExtractions={onSaveExtractions} onSaveSceneFeatures={onSaveSceneFeatures} />} />
+                <Route path="/feature-list" element={<FeatureList features={features} onSaveFeature={onSaveFeature} onAddToDrafts={onAddToDrafts} entryPoints={entryPoints} />} />
+                <Route path="/activations" element={<ActivationList activations={activations} onSaveActivation={onSaveActivation} onAddToDrafts={onAddToDrafts} entryPoints={entryPoints} rules={rules} />} />
+                <Route path="/rules" element={<RuleList rules={rules} onSaveRule={onSaveRule} onAddToDrafts={onAddToDrafts} activations={activations} />} />
+                <Route path="/circuit-breakers" element={<PolicyManager type="CIRCUIT_BREAKER" policies={policies} onSavePolicies={onSavePolicies} onDeletePolicy={onDeletePolicy} />} />
+                <Route path="/guardrails" element={<PolicyManager type="GUARDRAIL" policies={policies} onSavePolicies={onSavePolicies} onDeletePolicy={onDeletePolicy} />} />
+                <Route path="/overrides" element={<Overrides overrides={overrides} onDeleteOverride={onDeleteOverride} onAddOverride={onAddOverride} />} />
+                <Route path="/release-candidates" element={<ReleaseCandidates drafts={drafts} onCreateOrder={onCreateOrder} />} />
+                <Route path="/release-orders" element={<ReleaseOrders orders={orders} onUpdateOrder={onUpdateOrder} />} />
+                <Route path="/user-management" element={<UserManagement roles={roles} users={users} onUpdateUsers={setUsers} />} />
+                <Route path="/role-management" element={<RoleManagement roles={roles} users={users} onUpdateRoles={setRoles} />} />
               </Routes>
             </div>
           </div>
@@ -428,14 +470,6 @@ function AppInner() {
   )
 }
 
-// 占位页面（Task 5-16 中替换为真实组件）
-function PlaceholderPage({ name }) {
-  return (
-    <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-8 text-center">
-      <p className="text-slate-400 text-sm">页面组件待实现：{name}</p>
-    </div>
-  )
-}
 
 export default function App() {
   return (

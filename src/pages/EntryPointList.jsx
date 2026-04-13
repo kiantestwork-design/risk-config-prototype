@@ -1,5 +1,5 @@
 // EntryPointList 页面 - 还原自 app.js xz+gz 组件
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import { Search, Eye, SquarePen, Trash2, Plus } from 'lucide-react'
 import EntityEditorShell from '../components/EntityEditorShell'
 import StatusToggle from '../components/StatusToggle'
@@ -22,9 +22,7 @@ const LC_OPTS = [
   { value: 'UNPUBLISHED', label: '未发布' },
 ]
 
-export default function EntryPointList({ entryPoints, onSaveEntryPoint, onAddToDrafts, activations = [], properties = [], features = [], extractions = {}, sceneFeatures = {}, onSaveExtractions, onSaveSceneFeatures }) {
-  const [items, setItems] = useState(entryPoints)
-  useEffect(() => { setItems(entryPoints) }, [entryPoints])
+export default function EntryPointList({ entryPoints, onSaveEntryPoint, onDeleteEntryPoint, onBatchUpdateEntryPoints, onBatchDeleteEntryPoints, onAddToDrafts, activations = [], properties = [], features = [], extractions = {}, sceneFeatures = {}, onSaveExtractions, onSaveSceneFeatures }) {
   const [mode, setMode] = useState('LIST')
   const [selectedItem, setSelectedItem] = useState(null)
   const [initialMode, setInitialMode] = useState('view')
@@ -44,7 +42,7 @@ export default function EntryPointList({ entryPoints, onSaveEntryPoint, onAddToD
     return false
   }, [pendingExtractions, pendingSceneFeatures])
 
-  const filtered = useMemo(() => items.filter(ep => {
+  const filtered = useMemo(() => entryPoints.filter(ep => {
     if (applied.code && !ep.eventPoint.toLowerCase().includes(applied.code.toLowerCase())) return false
     if (applied.desc && !ep.description.toLowerCase().includes(applied.desc.toLowerCase())) return false
     if (applied.status !== 'ALL') {
@@ -58,7 +56,7 @@ export default function EntryPointList({ entryPoints, onSaveEntryPoint, onAddToD
       if (applied.lifecycle === 'UNPUBLISHED' && s.label !== '未发布') return false
     }
     return true
-  }), [items, applied])
+  }), [entryPoints, applied])
 
   const getRelatedCount = (ep) => activations.filter(a => a.eventPoint === ep.eventPoint).length
 
@@ -100,11 +98,9 @@ export default function EntryPointList({ entryPoints, onSaveEntryPoint, onAddToD
     let saved
     if (selectedItem) {
       saved = { ...selectedItem, ...data }
-      setItems(prev => prev.map(ep => ep.id === saved.id ? saved : ep))
     } else {
-      const newId = items.length ? Math.max(...items.map(ep => ep.id)) + 1 : 1
+      const newId = entryPoints.length ? Math.max(...entryPoints.map(ep => ep.id)) + 1 : 1
       saved = { id: newId, eventPoint: data.eventPoint || '', description: data.description || '', status: data.status ?? 1, lifecycleState: 'DRAFT', createAt: new Date().toISOString().replace('T', ' ').slice(0, 19), updateAt: data.updateAt || '', operator: data.operator || '' }
-      setItems(prev => [...prev, saved])
     }
     onSaveEntryPoint(saved)
     // Commit pending extraction/scene data
@@ -120,7 +116,7 @@ export default function EntryPointList({ entryPoints, onSaveEntryPoint, onAddToD
 
   const handleDelete = (id) => {
     if (confirm('确定要删除该接入点吗？此操作不可恢复。')) {
-      setItems(prev => prev.filter(ep => ep.id !== id))
+      onDeleteEntryPoint(id)
       const next = new Set(selected); next.delete(id); setSelected(next)
     }
   }
@@ -134,16 +130,17 @@ export default function EntryPointList({ entryPoints, onSaveEntryPoint, onAddToD
 
   const openBatchModal = (action) => { setBatchAction(action); setBatchModalVisible(true) }
   const executeBatch = (eligibleItems) => {
+    const ids = eligibleItems.map(it => it.id)
     if (batchAction === 'RELEASE') {
       eligibleItems.forEach(it => {
         onAddToDrafts({ id: `DFT-${Date.now()}-${it.id}`, type: 'ENTRY_POINT', targetId: String(it.id), targetName: it.eventPoint, version: 'vNext', relatedKeys: it.eventPoint, updatedAt: new Date().toISOString(), editor: 'current_user', changeSummary: '批量加入发布清单' })
       })
-      setItems(prev => prev.map(it => eligibleItems.find(s => s.id === it.id) ? { ...it, lifecycleState: 'READY' } : it))
+      onBatchUpdateEntryPoints(ids, { lifecycleState: 'READY' })
     } else if (batchAction === 'ENABLE' || batchAction === 'DISABLE') {
       const newStatus = batchAction === 'ENABLE' ? 1 : 2
-      setItems(prev => prev.map(it => eligibleItems.find(s => s.id === it.id) ? { ...it, status: newStatus, lifecycleState: 'DRAFT', updateAt: new Date().toISOString().replace('T', ' ').slice(0, 19) } : it))
+      onBatchUpdateEntryPoints(ids, { status: newStatus, lifecycleState: 'DRAFT', updateAt: new Date().toISOString().replace('T', ' ').slice(0, 19) })
     } else if (batchAction === 'DELETE') {
-      setItems(prev => prev.filter(it => !eligibleItems.find(s => s.id === it.id)))
+      onBatchDeleteEntryPoints(ids)
     }
     setSelected(new Set())
     setBatchModalVisible(false)
@@ -430,7 +427,7 @@ export default function EntryPointList({ entryPoints, onSaveEntryPoint, onAddToD
       <BulkConfirmModal
         visible={batchModalVisible}
         action={batchAction}
-        selectedItems={items.filter(it => selected.has(it.id))}
+        selectedItems={entryPoints.filter(it => selected.has(it.id))}
         onExecute={executeBatch}
         onClose={() => setBatchModalVisible(false)}
       />
