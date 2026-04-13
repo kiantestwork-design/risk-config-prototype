@@ -99,11 +99,12 @@ export default function ActivationList({ activations, onSaveActivation, onDelete
   const [editRuleIds, setEditRuleIds] = useState([])
   const initialRuleIdsRef = useRef('[]')
 
+  const extraDirtyCheck = useCallback(() => {
+    return JSON.stringify(editRuleIds) !== initialRuleIdsRef.current
+  }, [editRuleIds])
+
   if (mode === 'EDITOR') {
     const actVersions = selectedItem ? MOCK_ACTIVATION_VERSIONS.filter(v => v.activationId === selectedItem.id) : []
-    const extraDirtyCheck = useCallback(() => {
-      return JSON.stringify(editRuleIds) !== initialRuleIdsRef.current
-    }, [editRuleIds])
     return (
       <EntityEditorShell
         entityName="策略"
