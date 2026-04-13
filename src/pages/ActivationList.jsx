@@ -1,5 +1,5 @@
 // ActivationList 页面 - 还原自 app.js bz 组件（offset 865925，~61K）
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import { Search, Eye, SquarePen, Trash2, Plus } from 'lucide-react'
 import MultiSelectFilter from '../components/MultiSelectFilter'
 import EntityEditorShell from '../components/EntityEditorShell'
@@ -45,9 +45,9 @@ export default function ActivationList({ activations, onSaveActivation, onDelete
     return true
   }), [activations, applied])
 
-  const openView = (act) => { setSelectedItem(act); setInitialMode('view'); setEditRuleIds(act.ruleIds || []); setMode('EDITOR') }
-  const openEdit = (act) => { setSelectedItem(act); setInitialMode('edit'); setEditRuleIds(act.ruleIds || []); setMode('EDITOR') }
-  const openNew = () => { setSelectedItem(null); setInitialMode('edit'); setEditRuleIds([]); setMode('EDITOR') }
+  const openView = (act) => { setSelectedItem(act); setInitialMode('view'); setEditRuleIds(act.ruleIds || []); initialRuleIdsRef.current = JSON.stringify(act.ruleIds || []); setMode('EDITOR') }
+  const openEdit = (act) => { setSelectedItem(act); setInitialMode('edit'); setEditRuleIds(act.ruleIds || []); initialRuleIdsRef.current = JSON.stringify(act.ruleIds || []); setMode('EDITOR') }
+  const openNew = () => { setSelectedItem(null); setInitialMode('edit'); setEditRuleIds([]); initialRuleIdsRef.current = '[]'; setMode('EDITOR') }
 
   const handleSave = (data) => {
     let saved
@@ -97,9 +97,13 @@ export default function ActivationList({ activations, onSaveActivation, onDelete
   const [rulePickerVisible, setRulePickerVisible] = useState(false)
   // ruleIdsRef 用于在 extraSections 中管理编辑态的 ruleIds（因为 extraSections 拿到的是 data snapshot）
   const [editRuleIds, setEditRuleIds] = useState([])
+  const initialRuleIdsRef = useRef('[]')
 
   if (mode === 'EDITOR') {
     const actVersions = selectedItem ? MOCK_ACTIVATION_VERSIONS.filter(v => v.activationId === selectedItem.id) : []
+    const extraDirtyCheck = useCallback(() => {
+      return JSON.stringify(editRuleIds) !== initialRuleIdsRef.current
+    }, [editRuleIds])
     return (
       <EntityEditorShell
         entityName="策略"
@@ -109,6 +113,7 @@ export default function ActivationList({ activations, onSaveActivation, onDelete
         onBack={() => setMode('LIST')}
         onSave={handleSave}
         versions={actVersions}
+        extraDirtyCheck={extraDirtyCheck}
         renderForm={({ data, onChange, mode: m, changeNoteEl }) => (
           <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-6 space-y-5">
             <h3 className="text-base font-semibold text-slate-800">基本信息</h3>

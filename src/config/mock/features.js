@@ -39,7 +39,7 @@ export const MOCK_FEATURES = [
   {
     id: 102,
     name: 'user_login_count_1h',
-    description: '用户每1小时登录次数',
+    description: '用户近1小时登录次数',
     status: 1,
     lifecycleState: 'DRAFT',
     type: 'Aggregation',
