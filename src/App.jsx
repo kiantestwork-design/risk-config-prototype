@@ -98,7 +98,7 @@ function AppInner() {
   const [rules, setRules] = useState(MOCK_RULES)
   const [extractions, setExtractions] = useState(MOCK_EXTRACTIONS)
   const [sceneFeatures, setSceneFeatures] = useState(MOCK_SCENE_FEATURES)
-  const [properties] = useState(MOCK_PROPERTIES)
+  const [properties, setProperties] = useState(MOCK_PROPERTIES)
 
   // 权限检查
   const hasPerm = (perm) => {
@@ -178,6 +178,17 @@ function AppInner() {
   }
   const onSaveSceneFeatures = (epCode, scenes) => {
     setSceneFeatures(prev => ({ ...prev, [epCode]: scenes }))
+  }
+
+  const onSaveProperty = (property) => {
+    setProperties(prev => {
+      const idx = prev.findIndex(p => p.id === property.id)
+      if (idx >= 0) { const next = [...prev]; next[idx] = property; return next }
+      return [...prev, property]
+    })
+  }
+  const onDeleteProperty = (id) => {
+    setProperties(prev => prev.filter(p => p.id !== id))
   }
 
   const onDeleteEntryPoint = (id) => {
@@ -422,7 +433,7 @@ function AppInner() {
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/property-dictionary" element={<PropertyDictionary />} />
+                <Route path="/property-dictionary" element={<PropertyDictionary properties={properties} extractions={extractions} onSaveProperty={onSaveProperty} onDeleteProperty={onDeleteProperty} />} />
                 <Route path="/event-points" element={<EntryPointList entryPoints={entryPoints} onSaveEntryPoint={onSaveEntryPoint} onDeleteEntryPoint={onDeleteEntryPoint} onBatchUpdateEntryPoints={onBatchUpdateEntryPoints} onBatchDeleteEntryPoints={onBatchDeleteEntryPoints} onAddToDrafts={onAddToDrafts} activations={activations} properties={properties} features={features} extractions={extractions} sceneFeatures={sceneFeatures} onSaveExtractions={onSaveExtractions} onSaveSceneFeatures={onSaveSceneFeatures} />} />
                 <Route path="/feature-list" element={<FeatureList features={features} onSaveFeature={onSaveFeature} onAddToDrafts={onAddToDrafts} entryPoints={entryPoints} />} />
                 <Route path="/activations" element={<ActivationList activations={activations} onSaveActivation={onSaveActivation} onDeleteActivation={onDeleteActivation} onBatchUpdateActivations={onBatchUpdateActivations} onBatchDeleteActivations={onBatchDeleteActivations} onAddToDrafts={onAddToDrafts} entryPoints={entryPoints} rules={rules} />} />

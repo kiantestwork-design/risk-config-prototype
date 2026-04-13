@@ -1,6 +1,5 @@
 // PropertyDictionary 页面 - 还原自 app.js PropertyDictionaryPage（offset 1237623，~26K）
 import { useState, useMemo } from 'react'
-import { MOCK_PROPERTIES } from '../config/mock/properties'
 import FieldTypeTag from '../components/FieldTypeTag'
 import ValidateTag, { PD_VALIDATE_TYPES } from '../components/ValidateTag'
 import StatusToggle from '../components/StatusToggle'
@@ -92,8 +91,18 @@ function PdInlineForm({ form, setForm, onSave, onCancel, isEdit, errors, setErro
   )
 }
 
-export default function PropertyDictionary() {
-  const [items, setItems] = useState(MOCK_PROPERTIES.map(p => ({ ...p })))
+export default function PropertyDictionary({ properties = [], extractions = {}, onSaveProperty, onDeleteProperty }) {
+  const items = useMemo(() => {
+    const refCounts = {}
+    Object.values(extractions).forEach(list => {
+      (list || []).forEach(ext => {
+        if (ext.propertyId) {
+          refCounts[ext.propertyId] = (refCounts[ext.propertyId] || 0) + 1
+        }
+      })
+    })
+    return properties.map(p => ({ ...p, refCount: refCounts[p.id] || 0 }))
+  }, [properties, extractions])
   const [searchText, setSearchText] = useState('')
   const [typeFilter, setTypeFilter] = useState([])
   const [showNew, setShowNew] = useState(false)
@@ -134,8 +143,8 @@ export default function PropertyDictionary() {
   const saveNew = () => {
     const errs = validateForm(newForm, false)
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
-    const newItem = { id: String(Date.now()), ...newForm, status: 1, refCount: 0 }
-    setItems([...items, newItem])
+    const newItem = { id: String(Date.now()), ...newForm, status: 1 }
+    onSaveProperty(newItem)
     setShowNew(false)
     setNewForm({ ...EMPTY_FORM })
     setErrors({})
@@ -144,13 +153,16 @@ export default function PropertyDictionary() {
   const saveEdit = () => {
     const errs = validateForm(editForm, true)
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
-    setItems(items.map(i => i.id === editingId ? { ...i, description: editForm.description, fieldType: editForm.fieldType, validateType: editForm.validateType, validateArgs: editForm.validateArgs } : i))
+    const updated = items.find(i => i.id === editingId)
+    if (updated) {
+      onSaveProperty({ ...updated, description: editForm.description, fieldType: editForm.fieldType, validateType: editForm.validateType, validateArgs: editForm.validateArgs })
+    }
     setEditingId(null)
     setErrors({})
   }
 
   const handleDelete = (id) => {
-    setItems(items.filter(i => i.id !== id))
+    onDeleteProperty(id)
     setDeleteConfirmId(null)
   }
 
@@ -214,7 +226,7 @@ export default function PropertyDictionary() {
                         <span className="text-[10px] text-orange-500">锁定</span>
                       </span>
                     ) : (
-                      <StatusToggle enabled={item.status === 1} onChange={v => setItems(items.map(i => i.id === item.id ? { ...i, status: v ? 1 : 0 } : i))} />
+                      <StatusToggle enabled={item.status === 1} onChange={v => onSaveProperty({ ...item, status: v ? 1 : 0 })} />
                     )}
                   </td>
                   <td className="px-3 py-3 text-center w-[100px]">
